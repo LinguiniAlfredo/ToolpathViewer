@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ToolpathViewer.App/ToolpathViewer.App.csproj" />
+    <Project Path="src/ToolpathViewer.Core/ToolpathViewer.Core.csproj" />
+    <Project Path="src/ToolpathViewer.Rendering/ToolpathViewer.Rendering.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ToolpathViewer.Tests/ToolpathViewer.Tests.csproj" />
+  </Folder>
+</Solution>

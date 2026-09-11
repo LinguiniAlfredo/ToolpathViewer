@@ -1,0 +1,20 @@
+## .NET and Visual Studio
+[Bb]in/
+[Oo]bj/
+artifacts/
+publish/
+dist/
+[Tt]est[Rr]esults/
+
+## IDE and Editor directories
+.vs/
+.idea/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+*.sln.docstates
+
+## Crash and diagnostic logs
+*.log
+*.crash

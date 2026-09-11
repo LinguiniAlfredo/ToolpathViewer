@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!-- Application Metadata -->
+    <AssemblyTitle>ToolpathViewer</AssemblyTitle>
+    <Product>ToolpathViewer</Product>
+    <Description>Standalone 3D Toolpath Viewer</Description>
+    <Version>1.0.0</Version>
+
+    <!-- Standalone Single-File Defaults -->
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenTK" Version="4.9.4" />
+    <PackageReference Include="OpenTK.GLWpfControl" Version="4.3.6" />
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ToolpathViewer.Core\ToolpathViewer.Core.csproj" />
+    <ProjectReference Include="..\ToolpathViewer.Rendering\ToolpathViewer.Rendering.csproj" />
+  </ItemGroup>
+
+</Project>

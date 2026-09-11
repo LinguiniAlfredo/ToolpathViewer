@@ -1,0 +1,34 @@
+name: Build & Package Standalone
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Standalone Executable
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build, Test & Publish Standalone Executable
+        shell: pwsh
+        run: |
+          ./build.ps1 -Target Publish -Configuration Release
+
+      - name: Upload Standalone Executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: ToolpathViewer-win-x64-standalone
+          path: artifacts/ToolpathViewer.App.exe
+          if-no-files-found: error
