@@ -27,83 +27,88 @@ public static class SpiralHatchGenerator
         }
 
         // Universal boundary-clipped Archimedean spiral for general polygons/rectangles
-        List<HatchGeometry.Point2D> poly = HatchGeometry.GetPolygon2D(shape);
-        if (poly.Count < 3)
+        List<List<HatchGeometry.Point2D>> rawLoops = HatchGeometry.GetPolygonLoops(shape);
+        List<HatchGeometry.LoopData> loops = HatchGeometry.BuildLoopDataList(rawLoops);
+        if (loops.Count == 0)
         {
             return segments;
         }
 
-        // Find max distance from center to any boundary vertex
+        // Find max distance from center to any boundary vertex across all loops
         float maxR = 0.001f;
         var center2D = new HatchGeometry.Point2D(cx, cy);
-        for (int i = 0; i < poly.Count; i++)
+        for (int l = 0; l < loops.Count; l++)
         {
-            maxR = MathF.Max(maxR, center2D.DistanceTo(poly[i]));
+            IReadOnlyList<HatchGeometry.Point2D> pts = loops[l].Points;
+            for (int i = 0; i < pts.Count; i++)
+            {
+                maxR = MathF.Max(maxR, center2D.DistanceTo(pts[i]));
+            }
         }
 
-        float totalTurns = maxR / stepover;
-        int totalSteps = Math.Max(SamplesPerRevolution, (int)MathF.Ceiling(totalTurns * SamplesPerRevolution));
-        float dTheta = (2.0f * MathF.PI) / SamplesPerRevolution;
         float b = stepover / (2.0f * MathF.PI);
+        float maxChord = Math.Clamp(stepover * 3.0f, 0.05f, 0.25f);
+        const float minDTheta = (2.0f * MathF.PI) / 72f;
 
         var strokes = new List<List<ToolpathPoint>>();
         List<ToolpathPoint>? currentStroke = null;
+        var scratchIntervals = new List<HatchGeometry.SegmentInterval>();
+        var scratchT = new List<float>(8);
 
+        float theta = 0f;
         HatchGeometry.Point2D prevPt = center2D;
-        bool prevInside = HatchGeometry.IsPointInPolygon(prevPt, poly);
-        if (prevInside)
-        {
-            currentStroke = [new ToolpathPoint(prevPt.X, prevPt.Y, z)];
-        }
 
-        for (int step = 1; step <= totalSteps; step++)
+        while (true)
         {
-            float theta = step * dTheta;
-            float r = b * theta;
-            if (r > maxR * 1.05f)
+            float rPrev = b * theta;
+            if (rPrev > maxR * 1.05f)
             {
                 break;
             }
 
+            // Adaptive angular step to bound chord length at large radii while keeping smooth curvature at small radii
+            float dTheta = MathF.Min(minDTheta, maxChord / MathF.Max(0.01f, rPrev));
+            theta += dTheta;
+            float r = b * theta;
+
             float angle = theta + startAngleRad;
             var currPt = new HatchGeometry.Point2D(cx + r * MathF.Cos(angle), cy + r * MathF.Sin(angle));
-            bool currInside = HatchGeometry.IsPointInPolygon(currPt, poly);
 
-            if (prevInside && currInside)
-            {
-                currentStroke ??= [new ToolpathPoint(prevPt.X, prevPt.Y, z)];
-                currentStroke.Add(new ToolpathPoint(currPt.X, currPt.Y, z));
-            }
-            else if (prevInside && !currInside)
-            {
-                // Crossing from inside to outside: clip at boundary exit
-                if (TryFindBoundaryIntersection(poly, prevPt, currPt, out HatchGeometry.Point2D exitPt))
-                {
-                    currentStroke ??= [new ToolpathPoint(prevPt.X, prevPt.Y, z)];
-                    currentStroke.Add(new ToolpathPoint(exitPt.X, exitPt.Y, z));
-                }
+            scratchIntervals.Clear();
+            HatchGeometry.ClipSegmentToLoops(prevPt, currPt, loops, scratchIntervals, scratchT);
 
+            if (scratchIntervals.Count == 0)
+            {
                 if (currentStroke is { Count: >= 2 })
                 {
                     strokes.Add(currentStroke);
                 }
                 currentStroke = null;
             }
-            else if (!prevInside && currInside)
+            else
             {
-                // Crossing from outside to inside: clip at boundary entry
-                if (TryFindBoundaryIntersection(poly, prevPt, currPt, out HatchGeometry.Point2D entryPt))
+                for (int s = 0; s < scratchIntervals.Count; s++)
                 {
-                    currentStroke = [new ToolpathPoint(entryPt.X, entryPt.Y, z), new ToolpathPoint(currPt.X, currPt.Y, z)];
-                }
-                else
-                {
-                    currentStroke = [new ToolpathPoint(currPt.X, currPt.Y, z)];
+                    HatchGeometry.SegmentInterval interval = scratchIntervals[s];
+                    var pStart = new ToolpathPoint(interval.Start.X, interval.Start.Y, z);
+                    var pEnd = new ToolpathPoint(interval.End.X, interval.End.Y, z);
+
+                    if (currentStroke is not null && currentStroke[^1].DistanceTo(pStart) < 0.001f)
+                    {
+                        currentStroke.Add(pEnd);
+                    }
+                    else
+                    {
+                        if (currentStroke is { Count: >= 2 })
+                        {
+                            strokes.Add(currentStroke);
+                        }
+                        currentStroke = [pStart, pEnd];
+                    }
                 }
             }
 
             prevPt = currPt;
-            prevInside = currInside;
         }
 
         if (currentStroke is { Count: >= 2 })
@@ -213,33 +218,5 @@ public static class SpiralHatchGenerator
             segments.Add(new ToolpathSegment(points[i], points[i + 1], SegmentType.Hatch, layerId));
         }
         currentPosition = points[^1];
-    }
-
-    private static bool TryFindBoundaryIntersection(
-        IReadOnlyList<HatchGeometry.Point2D> polygon,
-        HatchGeometry.Point2D p1,
-        HatchGeometry.Point2D p2,
-        out HatchGeometry.Point2D nearestIntersection)
-    {
-        nearestIntersection = default;
-        float minDistance = float.MaxValue;
-        bool found = false;
-
-        int count = polygon.Count;
-        for (int i = 0, j = count - 1; i < count; j = i++)
-        {
-            if (HatchGeometry.TryIntersectSegments(p1, p2, polygon[j], polygon[i], out HatchGeometry.Point2D hit))
-            {
-                float dist = p1.DistanceTo(hit);
-                if (dist < minDistance)
-                {
-                    minDistance = dist;
-                    nearestIntersection = hit;
-                    found = true;
-                }
-            }
-        }
-
-        return found;
     }
 }

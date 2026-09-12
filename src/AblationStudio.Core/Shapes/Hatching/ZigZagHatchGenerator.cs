@@ -10,8 +10,8 @@ public static class ZigZagHatchGenerator
         ref ToolpathPoint? currentPosition)
     {
         var segments = new List<ToolpathSegment>();
-        List<HatchGeometry.Point2D> poly = HatchGeometry.GetPolygon2D(shape);
-        if (poly.Count < 3)
+        List<List<HatchGeometry.Point2D>> loops = HatchGeometry.GetPolygonLoops(shape);
+        if (loops.Count == 0 || loops.All(l => l.Count < 3))
         {
             return segments;
         }
@@ -20,13 +20,13 @@ public static class ZigZagHatchGenerator
         int layerId = shape.LayerId;
 
         // 1. Primary pass at AngleDegrees
-        GeneratePass(segments, poly, settings, settings.AngleDegrees, z, layerId, ref currentPosition);
+        GeneratePass(segments, loops, settings, settings.AngleDegrees, z, layerId, ref currentPosition);
 
         // 2. Optional Orthogonal Cross-Hatch pass
         if (settings.CrossHatch)
         {
             float crossAngle = (settings.AngleDegrees + 90f) % 360f;
-            GeneratePass(segments, poly, settings, crossAngle, z, layerId, ref currentPosition);
+            GeneratePass(segments, loops, settings, crossAngle, z, layerId, ref currentPosition);
         }
 
         return segments;
@@ -36,7 +36,7 @@ public static class ZigZagHatchGenerator
 
     private static void GeneratePass(
         List<ToolpathSegment> segments,
-        IReadOnlyList<HatchGeometry.Point2D> polygon,
+        IReadOnlyList<IReadOnlyList<HatchGeometry.Point2D>> loops,
         HatchSettings settings,
         float angleDegrees,
         float z,
@@ -48,20 +48,30 @@ public static class ZigZagHatchGenerator
         float cosFwd = MathF.Cos(rad);
         float sinFwd = MathF.Sin(rad);
 
-        // Rotate polygon by -angle to align scanlines horizontally along the X-axis
+        // Rotate polygon loops by -angle to align scanlines horizontally along the X-axis
         float cosInv = MathF.Cos(-rad);
         float sinInv = MathF.Sin(-rad);
 
-        var rotatedPoly = new HatchGeometry.Point2D[polygon.Count];
+        var rotatedLoops = new List<HatchGeometry.Point2D[]>(loops.Count);
         float minY = float.MaxValue;
         float maxY = float.MinValue;
 
-        for (int i = 0; i < polygon.Count; i++)
+        foreach (IReadOnlyList<HatchGeometry.Point2D> loop in loops)
         {
-            HatchGeometry.Point2D r = polygon[i].Rotate(cosInv, sinInv);
-            rotatedPoly[i] = r;
-            minY = MathF.Min(minY, r.Y);
-            maxY = MathF.Max(maxY, r.Y);
+            if (loop.Count < 3)
+            {
+                continue;
+            }
+
+            var rotLoop = new HatchGeometry.Point2D[loop.Count];
+            for (int i = 0; i < loop.Count; i++)
+            {
+                HatchGeometry.Point2D r = loop[i].Rotate(cosInv, sinInv);
+                rotLoop[i] = r;
+                minY = MathF.Min(minY, r.Y);
+                maxY = MathF.Max(maxY, r.Y);
+            }
+            rotatedLoops.Add(rotLoop);
         }
 
         float totalHeight = maxY - minY;
@@ -78,21 +88,24 @@ public static class ZigZagHatchGenerator
         for (float y = startY; y < maxY; y += stepover)
         {
             tempIntersections.Clear();
-            int count = rotatedPoly.Length;
 
-            for (int i = 0, j = count - 1; i < count; j = i++)
+            foreach (HatchGeometry.Point2D[] rotLoop in rotatedLoops)
             {
-                HatchGeometry.Point2D p1 = rotatedPoly[j];
-                HatchGeometry.Point2D p2 = rotatedPoly[i];
-
-                if ((p1.Y <= y && p2.Y > y) || (p2.Y <= y && p1.Y > y))
+                int count = rotLoop.Length;
+                for (int i = 0, j = count - 1; i < count; j = i++)
                 {
-                    float dy = p2.Y - p1.Y;
-                    if (MathF.Abs(dy) > 1e-9f)
+                    HatchGeometry.Point2D p1 = rotLoop[j];
+                    HatchGeometry.Point2D p2 = rotLoop[i];
+
+                    if ((p1.Y <= y && p2.Y > y) || (p2.Y <= y && p1.Y > y))
                     {
-                        float t = (y - p1.Y) / dy;
-                        float x = p1.X + t * (p2.X - p1.X);
-                        tempIntersections.Add(x);
+                        float dy = p2.Y - p1.Y;
+                        if (MathF.Abs(dy) > 1e-9f)
+                        {
+                            float t = (y - p1.Y) / dy;
+                            float x = p1.X + t * (p2.X - p1.X);
+                            tempIntersections.Add(x);
+                        }
                     }
                 }
             }

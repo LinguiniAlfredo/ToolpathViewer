@@ -1193,6 +1193,41 @@
                                             <TextBlock Text="{Binding SelectedShape.AngleDegrees, StringFormat='{}{0:F1}°'}" FontWeight="SemiBold" HorizontalAlignment="Right" />
                                         </Grid>
                                     </StackPanel>
+
+                                    <!-- Path Parameters -->
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedShape.ShapeType}" Value="Path">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+
+                                        <Grid Margin="0,2,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="Contours:" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
+                                                <TextBlock Text="{Binding SelectedShape.ContoursCount}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Total Points:" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
+                                                <TextBlock Text="{Binding SelectedShape.TotalPointsCount}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <Grid Margin="0,2">
+                                            <TextBlock Text="Total Perimeter:" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock Text="{Binding SelectedShape.TotalPerimeterLength, StringFormat='{}{0:F2} mm'}" FontWeight="SemiBold" HorizontalAlignment="Right" />
+                                        </Grid>
+                                    </StackPanel>
                                 </StackPanel>
                             </ui:Card>
 

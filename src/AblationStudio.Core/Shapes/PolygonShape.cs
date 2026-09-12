@@ -19,6 +19,7 @@ public sealed class PolygonShape : ToolpathShape
             float val = MathF.Max(0.01f, value);
             if (SetProperty(ref _radius, val))
             {
+                InvalidateHatchCache();
                 OnShapeModified();
             }
         }
@@ -32,6 +33,7 @@ public sealed class PolygonShape : ToolpathShape
             int val = Math.Clamp(value, 3, 100);
             if (SetProperty(ref _sides, val))
             {
+                InvalidateHatchCache();
                 OnShapeModified();
             }
         }
@@ -45,6 +47,7 @@ public sealed class PolygonShape : ToolpathShape
             float val = (value % 360f + 360f) % 360f;
             if (SetProperty(ref _rotationDegrees, val))
             {
+                InvalidateHatchCache();
                 OnShapeModified();
             }
         }
@@ -89,6 +92,7 @@ public sealed class PolygonShape : ToolpathShape
         PositionX = originX + (PositionX - originX) * factor;
         PositionY = originY + (PositionY - originY) * factor;
         Radius = MathF.Max(0.01f, Radius * factor);
+        InvalidateHatchCache();
         OnShapeModified();
     }
 

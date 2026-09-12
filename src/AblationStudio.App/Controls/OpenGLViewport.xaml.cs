@@ -294,6 +294,7 @@ public partial class OpenGLViewport : UserControl
                     if (hitShape is not null)
                     {
                         ShapeDocument.SelectedShape = hitShape;
+                        ShapeDocument.IsDragging = true;
                         _isDraggingShape = true;
                         if (_renderer.Camera.IntersectRayPlaneZ(rayOrigin, rayDir, hitShape.PositionZ, out Vector3 shapeHit))
                         {
@@ -468,7 +469,16 @@ public partial class OpenGLViewport : UserControl
                 _previewShape = null;
             }
 
-            _isDraggingShape = false;
+            if (_isDraggingShape)
+            {
+                _isDraggingShape = false;
+                if (ShapeDocument is not null)
+                {
+                    ShapeDocument.IsDragging = false;
+                    ShapeDocument.NotifyDocumentChanged();
+                }
+            }
+
             _isOrbiting = false;
         }
 

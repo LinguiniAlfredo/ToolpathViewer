@@ -19,6 +19,7 @@ public sealed class RectangleShape : ToolpathShape
             float val = MathF.Max(0.01f, value);
             if (SetProperty(ref _width, val))
             {
+                InvalidateHatchCache();
                 OnShapeModified();
             }
         }
@@ -32,6 +33,7 @@ public sealed class RectangleShape : ToolpathShape
             float val = MathF.Max(0.01f, value);
             if (SetProperty(ref _height, val))
             {
+                InvalidateHatchCache();
                 OnShapeModified();
             }
         }
@@ -45,6 +47,7 @@ public sealed class RectangleShape : ToolpathShape
             float val = (value % 360f + 360f) % 360f;
             if (SetProperty(ref _rotationDegrees, val))
             {
+                InvalidateHatchCache();
                 OnShapeModified();
             }
         }
@@ -99,6 +102,7 @@ public sealed class RectangleShape : ToolpathShape
         PositionY = originY + (PositionY - originY) * factor;
         Width = MathF.Max(0.01f, Width * factor);
         Height = MathF.Max(0.01f, Height * factor);
+        InvalidateHatchCache();
         OnShapeModified();
     }
 

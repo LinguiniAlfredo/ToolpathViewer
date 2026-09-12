@@ -18,6 +18,7 @@ public sealed class CircleShape : ToolpathShape
             float val = MathF.Max(0.01f, value);
             if (SetProperty(ref _radius, val))
             {
+                InvalidateHatchCache();
                 OnPropertyChanged(nameof(Diameter));
                 OnShapeModified();
             }
@@ -38,6 +39,7 @@ public sealed class CircleShape : ToolpathShape
             int val = Math.Clamp(value, 8, 360);
             if (SetProperty(ref _segmentsCount, val))
             {
+                InvalidateHatchCache();
                 OnShapeModified();
             }
         }
@@ -84,6 +86,7 @@ public sealed class CircleShape : ToolpathShape
         PositionX = originX + (PositionX - originX) * factor;
         PositionY = originY + (PositionY - originY) * factor;
         Radius = MathF.Max(0.01f, Radius * factor);
+        InvalidateHatchCache();
         OnShapeModified();
     }
 

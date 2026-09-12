@@ -9,6 +9,7 @@ namespace AblationStudio.Core.Projects;
 [JsonDerivedType(typeof(RectangleShapeDto), "rectangle")]
 [JsonDerivedType(typeof(PolygonShapeDto), "polygon")]
 [JsonDerivedType(typeof(LineShapeDto), "line")]
+[JsonDerivedType(typeof(PathShapeDto), "path")]
 public abstract class ShapeDto
 {
     public string Id { get; set; } = string.Empty;
@@ -50,6 +51,14 @@ public abstract class ShapeDto
                 EndX = line.EndX,
                 EndY = line.EndY,
                 EndZ = line.EndZ
+            },
+            PathShape path => new PathShapeDto
+            {
+                Contours = path.Contours.Select(c => new PathContourDto
+                {
+                    LocalPoints = [.. c.LocalPoints],
+                    IsClosed = c.IsClosed
+                }).ToList()
             },
             _ => throw new NotSupportedException($"Shape type '{shape.GetType().Name}' is not supported for serialization.")
         };
@@ -131,6 +140,25 @@ public sealed class LineShapeDto : ShapeDto
         PopulateCommonProperties(line);
         return line;
     }
+}
+
+public sealed class PathShapeDto : ShapeDto
+{
+    public List<PathContourDto> Contours { get; set; } = [];
+
+    public override ToolpathShape ToShape()
+    {
+        var contours = Contours.Select(c => new PathContour(c.LocalPoints, c.IsClosed));
+        var path = new PathShape(PositionX, PositionY, PositionZ, contours);
+        PopulateCommonProperties(path);
+        return path;
+    }
+}
+
+public sealed class PathContourDto
+{
+    public List<ToolpathPoint> LocalPoints { get; set; } = [];
+    public bool IsClosed { get; set; } = true;
 }
 
 public sealed class HatchSettingsDto

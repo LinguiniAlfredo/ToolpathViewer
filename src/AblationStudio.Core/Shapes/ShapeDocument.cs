@@ -39,6 +39,13 @@ public sealed class ShapeDocument
     public event Action? DocumentChanged;
     public event Action<ToolpathShape?>? SelectionChanged;
 
+    public bool IsDragging { get; set; }
+
+    public void NotifyDocumentChanged()
+    {
+        DocumentChanged?.Invoke();
+    }
+
     public ShapeDocument()
     {
         Shapes = new ReadOnlyObservableCollection<ToolpathShape>(_shapes);

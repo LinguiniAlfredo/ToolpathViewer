@@ -805,18 +805,32 @@ public sealed class MainViewModel : ObservableObject
                 return;
             }
 
-            // Otherwise load as standard raw toolpath segments
+            // Otherwise extract editable shape from the machine toolpath
             Toolpath toolpath = await ToolpathParser.ParseFileAsync(filePath);
+            PathShape? importedShape = ToolpathShapeConverter.ExtractShape(toolpath);
+
             CustomShapes.Clear();
             CurrentProjectPath = string.Empty;
             CurrentFilePath = filePath;
-            ProjectName = Path.GetFileName(filePath);
-            IsProjectModified = false;
+            ProjectName = Path.GetFileNameWithoutExtension(filePath);
+            IsProjectModified = true;
 
-            LoadedToolpath = toolpath;
-            ToolpathLoaded?.Invoke(toolpath, true);
-            FitViewRequested?.Invoke();
-            StatusText = $"Loaded machine toolpath {toolpath.Name}: {toolpath.Segments.Count} segments ({toolpath.Statistics.CutSegmentsCount} cut, {toolpath.Statistics.RapidSegmentsCount} jump).";
+            if (importedShape is not null)
+            {
+                CustomShapes.AddShape(importedShape);
+                CustomShapes.SelectedShape = importedShape;
+                LoadedToolpath = CustomShapes.CompileToolpath($"{ProjectName}.h");
+                ToolpathLoaded?.Invoke(LoadedToolpath, true);
+                FitViewRequested?.Invoke();
+                StatusText = $"Imported '{importedShape.Name}' as editable shape ({importedShape.ContoursCount} contour(s), {LoadedToolpath.Segments.Count} segments).";
+            }
+            else
+            {
+                LoadedToolpath = toolpath;
+                ToolpathLoaded?.Invoke(toolpath, true);
+                FitViewRequested?.Invoke();
+                StatusText = $"Loaded machine toolpath {toolpath.Name}: {toolpath.Segments.Count} segments ({toolpath.Statistics.CutSegmentsCount} cut, {toolpath.Statistics.RapidSegmentsCount} jump).";
+            }
         }
         catch (Exception ex)
         {
@@ -858,16 +872,20 @@ public sealed class MainViewModel : ObservableObject
     private void OnCustomShapesDocumentChanged()
     {
         IsProjectModified = true;
-        (SaveProjectCommand as RelayCommand)?.RaiseCanExecuteChanged();
-        (SaveProjectAsCommand as RelayCommand)?.RaiseCanExecuteChanged();
-        (ExportMachineFileCommand as RelayCommand)?.RaiseCanExecuteChanged();
 
         if (CustomShapes.Shapes.Count > 0)
         {
             LoadedToolpath = CustomShapes.CompileToolpath(string.IsNullOrEmpty(ProjectName) ? "CustomShapes.h" : $"{ProjectName}.h");
             CurrentFilePath = string.Empty;
             ToolpathLoaded?.Invoke(LoadedToolpath, false);
-            StatusText = $"Custom toolpath: {CustomShapes.Shapes.Count} shapes, {LoadedToolpath.Segments.Count} segments ({LoadedToolpath.Statistics.TotalCutLength:F2} mm cut).";
+
+            if (!CustomShapes.IsDragging)
+            {
+                (SaveProjectCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (SaveProjectAsCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (ExportMachineFileCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                StatusText = $"Custom toolpath: {CustomShapes.Shapes.Count} shapes, {LoadedToolpath.Segments.Count} segments ({LoadedToolpath.Statistics.TotalCutLength:F2} mm cut).";
+            }
         }
         else
         {
@@ -875,6 +893,9 @@ public sealed class MainViewModel : ObservableObject
             CurrentFilePath = string.Empty;
             ToolpathLoaded?.Invoke(LoadedToolpath, false);
             StatusText = "Ready. Select a shape tool to draw, or open a project / toolpath.";
+            (SaveProjectCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (SaveProjectAsCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (ExportMachineFileCommand as RelayCommand)?.RaiseCanExecuteChanged();
         }
         RequestRender?.Invoke();
     }

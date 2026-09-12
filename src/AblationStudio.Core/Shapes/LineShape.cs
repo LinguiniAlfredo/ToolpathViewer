@@ -1,4 +1,4 @@
-﻿using AblationStudio.Core.Models;
+using AblationStudio.Core.Models;
 
 namespace AblationStudio.Core.Shapes;
 
@@ -90,16 +90,13 @@ public sealed class LineShape : ToolpathShape
 
     public override void Translate(float deltaX, float deltaY, float deltaZ)
     {
-        PositionX += deltaX;
-        PositionY += deltaY;
-        PositionZ += deltaZ;
+        base.Translate(deltaX, deltaY, deltaZ);
         _endX += deltaX;
         _endY += deltaY;
         _endZ += deltaZ;
         OnPropertyChanged(nameof(EndX));
         OnPropertyChanged(nameof(EndY));
         OnPropertyChanged(nameof(EndZ));
-        OnShapeModified();
     }
 
     public override void Scale(float factor, float originX, float originY)

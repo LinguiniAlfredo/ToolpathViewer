@@ -18,12 +18,23 @@ public abstract class ToolpathShape : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     public event Action<ToolpathShape>? ShapeChanged;
 
+    protected List<ToolpathSegment>? CachedHatchSegments;
+
     public string Id { get; } = Guid.NewGuid().ToString("N");
     public HatchSettings Hatch { get; } = new();
 
     protected ToolpathShape()
     {
-        Hatch.SettingsChanged += OnShapeModified;
+        Hatch.SettingsChanged += () =>
+        {
+            InvalidateHatchCache();
+            OnShapeModified();
+        };
+    }
+
+    public void InvalidateHatchCache()
+    {
+        CachedHatchSegments = null;
     }
 
     public string Name
@@ -39,6 +50,7 @@ public abstract class ToolpathShape : INotifyPropertyChanged
         {
             if (SetProperty(ref _positionX, value))
             {
+                InvalidateHatchCache();
                 OnShapeModified();
             }
         }
@@ -51,6 +63,7 @@ public abstract class ToolpathShape : INotifyPropertyChanged
         {
             if (SetProperty(ref _positionY, value))
             {
+                InvalidateHatchCache();
                 OnShapeModified();
             }
         }
@@ -63,6 +76,7 @@ public abstract class ToolpathShape : INotifyPropertyChanged
         {
             if (SetProperty(ref _positionZ, value))
             {
+                InvalidateHatchCache();
                 OnShapeModified();
             }
         }
@@ -75,6 +89,7 @@ public abstract class ToolpathShape : INotifyPropertyChanged
         {
             if (SetProperty(ref _layerId, value))
             {
+                InvalidateHatchCache();
                 OnShapeModified();
             }
         }
@@ -87,6 +102,7 @@ public abstract class ToolpathShape : INotifyPropertyChanged
         {
             if (SetProperty(ref _cutType, value))
             {
+                InvalidateHatchCache();
                 OnShapeModified();
             }
         }
@@ -142,9 +158,25 @@ public abstract class ToolpathShape : INotifyPropertyChanged
         // Generate inner hatch infill
         if (hasHatch)
         {
-            foreach (ToolpathSegment seg in HatchEngine.GenerateHatch(this, Hatch, ref pos))
+            if (CachedHatchSegments is null)
             {
-                yield return seg;
+                ToolpathPoint? hatchPos = pos;
+                CachedHatchSegments = HatchEngine.GenerateHatch(this, Hatch, ref hatchPos);
+            }
+
+            if (CachedHatchSegments.Count > 0)
+            {
+                if (pos is not null && pos.Value.DistanceTo(CachedHatchSegments[0].Start) > 0.001f)
+                {
+                    yield return new ToolpathSegment(pos.Value, CachedHatchSegments[0].Start, SegmentType.Rapid, LayerId);
+                }
+
+                for (int i = 0; i < CachedHatchSegments.Count; i++)
+                {
+                    yield return CachedHatchSegments[i];
+                }
+
+                pos = CachedHatchSegments[^1].End;
             }
         }
     }
@@ -178,9 +210,25 @@ public abstract class ToolpathShape : INotifyPropertyChanged
 
     public virtual void Translate(float deltaX, float deltaY, float deltaZ)
     {
-        PositionX += deltaX;
-        PositionY += deltaY;
-        PositionZ += deltaZ;
+        _positionX += deltaX;
+        _positionY += deltaY;
+        _positionZ += deltaZ;
+
+        if (CachedHatchSegments is not null)
+        {
+            for (int i = 0; i < CachedHatchSegments.Count; i++)
+            {
+                ToolpathSegment s = CachedHatchSegments[i];
+                var start = new ToolpathPoint(s.Start.X + deltaX, s.Start.Y + deltaY, s.Start.Z + deltaZ);
+                var end = new ToolpathPoint(s.End.X + deltaX, s.End.Y + deltaY, s.End.Z + deltaZ);
+                CachedHatchSegments[i] = new ToolpathSegment(start, end, s.Type, s.LayerId);
+            }
+        }
+
+        OnPropertyChanged(nameof(PositionX));
+        OnPropertyChanged(nameof(PositionY));
+        OnPropertyChanged(nameof(PositionZ));
+        OnShapeModified();
     }
 
     public abstract void Scale(float factor, float originX, float originY);
