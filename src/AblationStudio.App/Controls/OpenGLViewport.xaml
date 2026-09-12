@@ -72,12 +72,17 @@
                                Margin="0,0,0,4" />
                     <StackPanel Orientation="Horizontal" Margin="0,2">
                         <Border Width="12" Height="3" CornerRadius="1.5" Background="#00D2FF" Margin="0,0,8,0" VerticalAlignment="Center" />
-                        <TextBlock Text="Cutting Line " FontWeight="SemiBold" Foreground="#CCD0D8" FontSize="11" />
+                        <TextBlock Text="Profile " FontWeight="SemiBold" Foreground="#CCD0D8" FontSize="11" />
+                        <TextBlock Text="(M03 - Laser ON)" Foreground="#99A0B0" FontSize="11" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                        <Border Width="12" Height="3" CornerRadius="1.5" Background="#D946EF" Margin="0,0,8,0" VerticalAlignment="Center" />
+                        <TextBlock Text="Hatch " FontWeight="SemiBold" Foreground="#CCD0D8" FontSize="11" />
                         <TextBlock Text="(M03 - Laser ON)" Foreground="#99A0B0" FontSize="11" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,2">
                         <Border Width="12" Height="2" CornerRadius="1" Background="#FFAA00" Margin="0,0,8,0" VerticalAlignment="Center" />
-                        <TextBlock Text="Rapid Move " FontWeight="SemiBold" Foreground="#CCD0D8" FontSize="11" />
+                        <TextBlock Text="Rapid " FontWeight="SemiBold" Foreground="#CCD0D8" FontSize="11" />
                         <TextBlock Text="(M05 - Laser OFF)" Foreground="#99A0B0" FontSize="11" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,2">

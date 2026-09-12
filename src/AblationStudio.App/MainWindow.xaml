@@ -812,14 +812,13 @@
                                     <!-- Progressive Trace Mode -->
                                     <CheckBox IsChecked="{Binding IsProgressiveSimulation, Mode=TwoWay}"
                                               Content="Live Path Trace"
-                                              FontWeight="SemiBold"
-                                              Margin="0,2,0,4"
+                                              FontSize="11"
+                                              Margin="0,2,0,2"
                                               ToolTip="Draw the toolpath progressively as simulated rather than showing the full path context" />
                                     <CheckBox IsChecked="{Binding ShowGhostTrail, Mode=TwoWay}"
                                               Content="Show Ghost"
                                               FontSize="11"
-                                              Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                              Margin="20,0,0,8"
+                                              Margin="0,2,0,8"
                                               IsEnabled="{Binding IsProgressiveSimulation}"
                                               ToolTip="Display untraveled toolpath moves with faint transparency" />
 
