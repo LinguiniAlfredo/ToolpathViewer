@@ -363,6 +363,100 @@ public sealed class PathShapeTests
     }
 
     [Fact]
+    public void FollowProfile_QLogo_HasNoSelfIntersections()
+    {
+        Toolpath toolpath = ClsToolpathParser.ParseText(QLogoCls, "Q_Logo.cls");
+        PathShape? shape = ToolpathShapeConverter.ExtractShape(toolpath);
+        Assert.NotNull(shape);
+
+        shape.Hatch.IsEnabled = true;
+        shape.Hatch.Pattern = HatchPatternType.FollowProfile;
+        shape.Hatch.Stepover = 0.15f;
+
+        ToolpathPoint? pos = null;
+        List<ToolpathSegment> segments = shape.GenerateSegments(pos).ToList();
+
+        // Extract hatch loops (each closed loop starts with Rapid or discontinuity)
+        var hatchLoops = new List<List<ToolpathPoint>>();
+        var currentLoop = new List<ToolpathPoint>();
+
+        foreach (ToolpathSegment s in segments)
+        {
+            if (s.Type == SegmentType.Rapid)
+            {
+                if (currentLoop.Count > 2)
+                {
+                    hatchLoops.Add([.. currentLoop]);
+                }
+                currentLoop.Clear();
+                continue;
+            }
+
+            if (s.Type == SegmentType.Hatch)
+            {
+                if (currentLoop.Count == 0)
+                {
+                    currentLoop.Add(s.Start);
+                }
+                currentLoop.Add(s.End);
+            }
+        }
+        if (currentLoop.Count > 2)
+        {
+            hatchLoops.Add([.. currentLoop]);
+        }
+
+        Assert.NotEmpty(hatchLoops);
+
+        // Check each loop for self-intersections (wrap-overs)
+        int selfIntersectionCount = 0;
+        foreach (List<ToolpathPoint> loop in hatchLoops)
+        {
+            int n = loop.Count;
+            // Remove closing duplicate if present
+            if (n > 2 && loop[0].DistanceTo(loop[^1]) < 1e-4f)
+            {
+                n--;
+            }
+
+            for (int i = 0; i < n; i++)
+            {
+                var a1 = new HatchGeometry.Point2D(loop[i].X, loop[i].Y);
+                var a2 = new HatchGeometry.Point2D(loop[(i + 1) % n].X, loop[(i + 1) % n].Y);
+
+                // Compare with non-adjacent edges
+                for (int j = i + 2; j < n; j++)
+                {
+                    if (i == 0 && j == n - 1)
+                    {
+                        continue; // adjacent across wrap
+                    }
+
+                    var b1 = new HatchGeometry.Point2D(loop[j].X, loop[j].Y);
+                    var b2 = new HatchGeometry.Point2D(loop[(j + 1) % n].X, loop[(j + 1) % n].Y);
+
+                    if (HatchGeometry.TryIntersectSegments(a1, a2, b1, b2, out _))
+                    {
+                        selfIntersectionCount++;
+                    }
+                }
+            }
+        }
+
+        Assert.Equal(0, selfIntersectionCount);
+    }
+
+
+
+
+
+
+
+
+
+
+
+    [Fact]
     public void FollowProfile_Star_DoesNotEscapeAndTerminatesCleanly()
     {
         const string starCls = """
@@ -397,6 +491,49 @@ public sealed class PathShapeTests
         List<ToolpathSegment> hatchSegs = segments.Where(s => s.Type == SegmentType.Hatch).ToList();
         Assert.NotEmpty(hatchSegs);
 
+        // Group into loops
+        var loops = new List<List<ToolpathPoint>>();
+        var cur = new List<ToolpathPoint>();
+        foreach (ToolpathSegment s in segments)
+        {
+            if (s.Type == SegmentType.Rapid)
+            {
+                if (cur.Count > 0) loops.Add([.. cur]);
+                cur.Clear();
+                continue;
+            }
+            if (s.Type == SegmentType.Hatch)
+            {
+                if (cur.Count == 0) cur.Add(s.Start);
+                cur.Add(s.End);
+            }
+        }
+        if (cur.Count > 0) loops.Add([.. cur]);
+
+        // Verify rings are clean and well-proportioned
+        Assert.True(loops.Count >= 3, $"Expected >=3 rings for star, got {loops.Count}");
+
+        // Innermost ring should maintain all 10 star vertices and be centered
+        List<ToolpathPoint> innermostLoop = loops[^1];
+        // Remove closing point if present
+        int nInner = innermostLoop.Count;
+        if (nInner > 2 && innermostLoop[0].DistanceTo(innermostLoop[^1]) < 1e-4f)
+        {
+            nInner--;
+        }
+        Assert.Equal(10, nInner);
+
+        // Verify innermost ring center is not skewed (star center is approx (-3.495, 1.772))
+        float innerMinX = innermostLoop.Take(nInner).Min(p => p.X);
+        float innerMaxX = innermostLoop.Take(nInner).Max(p => p.X);
+        float innerMinY = innermostLoop.Take(nInner).Min(p => p.Y);
+        float innerMaxY = innermostLoop.Take(nInner).Max(p => p.Y);
+        float innerCx = (innerMinX + innerMaxX) * 0.5f;
+        float innerCy = (innerMinY + innerMaxY) * 0.5f;
+
+        Assert.Equal(-3.495f, innerCx, precision: 2);
+        Assert.Equal(1.762f, innerCy, precision: 2);
+
         // All hatch segment endpoints and midpoints must hit-test inside the star
         foreach (ToolpathSegment s in hatchSegs)
         {
@@ -406,6 +543,8 @@ public sealed class PathShapeTests
             Assert.True(shape.HitTest(mid.X, mid.Y, 0.005f), $"Star hatch midpoint ({mid.X},{mid.Y}) escaped outside!");
         }
     }
+
+
 
     [Fact]
     public void ShapeTranslation_PreservesAndOffsetsCachedHatch_WithoutRecomputing()
@@ -481,4 +620,80 @@ public sealed class PathShapeTests
             Assert.True(HatchGeometry.IsPointInLoops(pMid, loops), $"Follow Profile hatch midpoint ({pMid.X:F3}, {pMid.Y:F3}) escaped flag boundary!");
         }
     }
+
+    [Theory]
+    [InlineData(@"c:\Users\m_del\Source\vibe_test\example_toolpaths\Flag.cls")]
+    [InlineData(@"c:\Users\m_del\Source\vibe_test\example_toolpaths\Flag.txt")]
+    public async Task Flag_FollowProfile_SmallStepover_StarsInnermostRingsAreSymmetrical(string filePath)
+    {
+        if (!System.IO.File.Exists(filePath))
+        {
+            return;
+        }
+
+        Toolpath toolpath = await ToolpathParser.ParseFileAsync(filePath);
+        PathShape? flagShape = ToolpathShapeConverter.ExtractShape(toolpath);
+        Assert.NotNull(flagShape);
+
+        flagShape.Hatch.IsEnabled = true;
+        flagShape.Hatch.Pattern = HatchPatternType.FollowProfile;
+        flagShape.Hatch.Stepover = 0.01f;
+
+        List<ToolpathSegment> segments = flagShape.GenerateSegments(null).ToList();
+
+        // Extract closed loops in star region (X < -2.0, Y > 0.4)
+        var starLoops = new List<List<ToolpathPoint>>();
+        var curLoop = new List<ToolpathPoint>();
+
+        foreach (ToolpathSegment s in segments)
+        {
+            if (s.Type == SegmentType.Rapid)
+            {
+                if (curLoop.Count > 2)
+                {
+                    if (curLoop.All(p => p.X < -1.8f && p.Y > 0.3f))
+                    {
+                        starLoops.Add([.. curLoop]);
+                    }
+                }
+                curLoop.Clear();
+                continue;
+            }
+
+            if (s.Type == SegmentType.Hatch)
+            {
+                if (curLoop.Count == 0) curLoop.Add(s.Start);
+                curLoop.Add(s.End);
+            }
+        }
+        if (curLoop.Count > 2 && curLoop.All(p => p.X < -1.8f && p.Y > 0.3f))
+        {
+            starLoops.Add([.. curLoop]);
+        }
+
+        // We expect plenty of star rings across the 50 stars at 0.01 stepover
+        Assert.True(starLoops.Count >= 50, $"Expected >=50 star loops, got {starLoops.Count}");
+
+        // Find the smallest (innermost) loops with width < 0.08 mm
+        var innermostStarLoops = starLoops.Where(l => (l.Max(p => p.X) - l.Min(p => p.X)) < 0.08f).ToList();
+        Assert.NotEmpty(innermostStarLoops);
+
+        // Every innermost star loop must have 10 vertices (5 points, 5 valleys), not misshapen or skewed
+        foreach (List<ToolpathPoint> loop in innermostStarLoops)
+        {
+            int n = loop.Count;
+            if (n > 2 && loop[0].DistanceTo(loop[^1]) < 1e-4f) n--;
+
+            // A properly formed 5-point star ring has 10 vertices
+            Assert.Equal(10, n);
+
+            // Check symmetry: center of X bounds and center of Y bounds should have aspect ratio approx 1.0
+            float w = loop.Take(n).Max(p => p.X) - loop.Take(n).Min(p => p.X);
+            float h = loop.Take(n).Max(p => p.Y) - loop.Take(n).Min(p => p.Y);
+            float aspect = w / h;
+            // Star width/height ratio is ~1.05
+            Assert.InRange(aspect, 0.90f, 1.25f);
+        }
+    }
 }
+

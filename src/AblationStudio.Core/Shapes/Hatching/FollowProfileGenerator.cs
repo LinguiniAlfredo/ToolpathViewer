@@ -1,4 +1,5 @@
 using AblationStudio.Core.Models;
+using Clipper2Lib;
 
 namespace AblationStudio.Core.Shapes.Hatching;
 
@@ -158,28 +159,29 @@ public static class FollowProfileGenerator
         float stepover,
         float z)
     {
-        var allRings = new List<ProfileRing>();
-        IReadOnlyList<ToolpathPoint> pts = shape.GetPathPoints();
-        if (pts.Count < 3)
-        {
-            return allRings;
-        }
-
         List<List<HatchGeometry.Point2D>> rawLoops = HatchGeometry.GetPolygonLoops(shape);
-        List<HatchGeometry.LoopData> allLoops = HatchGeometry.BuildLoopDataList(rawLoops);
-        if (allLoops.Count == 0)
+        if (rawLoops.Count == 0)
         {
-            return allRings;
+            return [];
         }
 
-        var worldPts = new HatchGeometry.Point2D[pts.Count];
-        for (int i = 0; i < pts.Count; i++)
+        var rawPaths = new PathsD(rawLoops.Count);
+        foreach (List<HatchGeometry.Point2D> loop in rawLoops)
         {
-            worldPts[i] = new HatchGeometry.Point2D(pts[i].X, pts[i].Y);
+            if (loop.Count < 3)
+            {
+                continue;
+            }
+
+            var path = new PathD(loop.Count);
+            foreach (HatchGeometry.Point2D pt in loop)
+            {
+                path.Add(new PointD(pt.X, pt.Y));
+            }
+            rawPaths.Add(path);
         }
 
-        GenerateContourOffsetRings(worldPts, stepover, z, allLoops, allRings);
-        return allRings;
+        return GetClipperRings(rawPaths, stepover, z);
     }
 
     private static List<ProfileRing> GetPathShapeRings(
@@ -187,16 +189,9 @@ public static class FollowProfileGenerator
         float stepover,
         float z)
     {
-        var allRings = new List<ProfileRing>();
-        List<List<HatchGeometry.Point2D>> rawLoops = HatchGeometry.GetPolygonLoops(pathShape);
-        List<HatchGeometry.LoopData> allLoops = HatchGeometry.BuildLoopDataList(rawLoops);
-        if (allLoops.Count == 0)
-        {
-            return allRings;
-        }
-
         float px = pathShape.PositionX;
         float py = pathShape.PositionY;
+        var rawPaths = new PathsD();
 
         foreach (PathContour contour in pathShape.Contours)
         {
@@ -205,202 +200,66 @@ public static class FollowProfileGenerator
                 continue;
             }
 
-            IReadOnlyList<ToolpathPoint> localPts = contour.LocalPoints;
-            var worldPts = new HatchGeometry.Point2D[localPts.Count];
-            for (int i = 0; i < localPts.Count; i++)
+            var path = new PathD(contour.PointsCount);
+            foreach (ToolpathPoint pt in contour.LocalPoints)
             {
-                worldPts[i] = new HatchGeometry.Point2D(px + localPts[i].X, py + localPts[i].Y);
+                path.Add(new PointD(px + pt.X, py + pt.Y));
             }
-
-            GenerateContourOffsetRings(worldPts, stepover, z, allLoops, allRings);
+            rawPaths.Add(path);
         }
 
-        return allRings;
+        return GetClipperRings(rawPaths, stepover, z);
     }
 
-    private static void GenerateContourOffsetRings(
-        IReadOnlyList<HatchGeometry.Point2D> inputPts,
+    private const int ClipperPrecision = 6;
+
+    private static List<ProfileRing> GetClipperRings(
+        PathsD rawPaths,
         float stepover,
-        float z,
-        IReadOnlyList<HatchGeometry.LoopData> allLoops,
-        List<ProfileRing> outputRings)
+        float z)
     {
-        // 1. Clean input vertices: remove adjacent duplicates and closing duplicate
-        var pts = new List<HatchGeometry.Point2D>(inputPts.Count);
-        for (int i = 0; i < inputPts.Count; i++)
+        var allRings = new List<ProfileRing>();
+        if (rawPaths.Count == 0)
         {
-            if (pts.Count == 0 || pts[^1].DistanceTo(inputPts[i]) > 1e-5f)
-            {
-                pts.Add(inputPts[i]);
-            }
-        }
-        if (pts.Count > 2 && pts[^1].DistanceTo(pts[0]) < 1e-5f)
-        {
-            pts.RemoveAt(pts.Count - 1);
+            return allRings;
         }
 
-        int n = pts.Count;
-        if (n < 3)
+        // Normalize loops and hierarchy with EvenOdd fill rule at sub-micron precision
+        PathsD basePaths = Clipper.Union(rawPaths, new PathsD(), FillRule.EvenOdd, ClipperPrecision);
+        if (basePaths.Count == 0)
         {
-            return;
+            return allRings;
         }
 
-        // 2. Compute signed area
-        float origArea = 0f;
-        for (int i = 0, j = n - 1; i < n; j = i++)
+        const int maxIterations = 100_000;
+        for (int step = 1; step <= maxIterations; step++)
         {
-            origArea += (pts[j].X * pts[i].Y - pts[i].X * pts[j].Y);
-        }
-        origArea *= 0.5f;
-        if (MathF.Abs(origArea) < 1e-6f)
-        {
-            return;
-        }
-
-        bool isCcw = origArea > 0f;
-
-        // 3. Compute edge unit tangents and inward normals
-        var tangents = new HatchGeometry.Point2D[n];
-        var normals = new HatchGeometry.Point2D[n];
-
-        for (int i = 0; i < n; i++)
-        {
-            int next = (i + 1) % n;
-            float dx = pts[next].X - pts[i].X;
-            float dy = pts[next].Y - pts[i].Y;
-            float len = MathF.Sqrt(dx * dx + dy * dy);
-            if (len < 1e-6f)
-            {
-                tangents[i] = new HatchGeometry.Point2D(1f, 0f);
-                normals[i] = isCcw ? new HatchGeometry.Point2D(0f, 1f) : new HatchGeometry.Point2D(0f, -1f);
-            }
-            else
-            {
-                float tx = dx / len;
-                float ty = dy / len;
-                tangents[i] = new HatchGeometry.Point2D(tx, ty);
-                normals[i] = isCcw ? new HatchGeometry.Point2D(-ty, tx) : new HatchGeometry.Point2D(ty, -tx);
-            }
-        }
-
-        // 4. Precompute miter displacement directions at each vertex
-        var miterVectors = new HatchGeometry.Point2D[n];
-        for (int i = 0; i < n; i++)
-        {
-            int prev = (i + n - 1) % n;
-            HatchGeometry.Point2D nPrev = normals[prev];
-            HatchGeometry.Point2D nCurr = normals[i];
-
-            float dot = nPrev.X * nCurr.X + nPrev.Y * nCurr.Y;
-            float denom = 1f + dot;
-
-            if (denom < 1e-4f)
-            {
-                miterVectors[i] = nCurr;
-            }
-            else
-            {
-                float mx = (nPrev.X + nCurr.X) / denom;
-                float my = (nPrev.Y + nCurr.Y) / denom;
-                float lenSq = mx * mx + my * my;
-                const float maxMiter = 2.5f;
-                if (lenSq > maxMiter * maxMiter)
-                {
-                    float s = maxMiter / MathF.Sqrt(lenSq);
-                    mx *= s;
-                    my *= s;
-                }
-                miterVectors[i] = new HatchGeometry.Point2D(mx, my);
-            }
-        }
-
-        // 5. Inward offset iterations
-        var scratchIntervals = new List<HatchGeometry.SegmentInterval>();
-        var scratchT = new List<float>(8);
-        var offsetPts = new HatchGeometry.Point2D[n];
-
-        for (int step = 1; ; step++)
-        {
-            float d = step * stepover;
-
-            for (int i = 0; i < n; i++)
-            {
-                offsetPts[i] = new HatchGeometry.Point2D(
-                    pts[i].X + d * miterVectors[i].X,
-                    pts[i].Y + d * miterVectors[i].Y);
-            }
-
-            // Area check: stop if collapsed or inverted
-            float offsetArea = 0f;
-            for (int i = 0, j = n - 1; i < n; j = i++)
-            {
-                offsetArea += (offsetPts[j].X * offsetPts[i].Y - offsetPts[i].X * offsetPts[j].Y);
-            }
-            offsetArea *= 0.5f;
-
-            if ((offsetArea > 0f) != isCcw || MathF.Abs(offsetArea) < 1e-6f || MathF.Abs(offsetArea) > MathF.Abs(origArea))
+            double delta = -step * (double)stepover;
+            PathsD solution = Clipper.InflatePaths(basePaths, delta, JoinType.Miter, EndType.Polygon, 2.0, ClipperPrecision);
+            if (solution.Count == 0)
             {
                 break;
             }
 
-            // Check if entire ring is inside
-            bool allInside = true;
-            for (int i = 0; i < n; i++)
+            foreach (PathD ring in solution)
             {
-                if (!HatchGeometry.IsPointInLoops(offsetPts[i], allLoops))
+                int n = ring.Count;
+                if (n < 3)
                 {
-                    allInside = false;
-                    break;
+                    continue;
                 }
-                int next = (i + 1) % n;
-                var mid = new HatchGeometry.Point2D(
-                    (offsetPts[i].X + offsetPts[next].X) * 0.5f,
-                    (offsetPts[i].Y + offsetPts[next].Y) * 0.5f);
-                if (!HatchGeometry.IsPointInLoops(mid, allLoops))
-                {
-                    allInside = false;
-                    break;
-                }
-            }
 
-            if (allInside)
-            {
                 var ringPts = new ToolpathPoint[n];
                 for (int i = 0; i < n; i++)
                 {
-                    ringPts[i] = new ToolpathPoint(offsetPts[i].X, offsetPts[i].Y, z);
-                }
-                outputRings.Add(new ProfileRing(ringPts, true));
-            }
-            else
-            {
-                // Partial ring: clip each segment and add valid inside strokes
-                bool hasAnyStroke = false;
-                for (int i = 0; i < n; i++)
-                {
-                    int next = (i + 1) % n;
-                    scratchIntervals.Clear();
-                    HatchGeometry.ClipSegmentToLoops(offsetPts[i], offsetPts[next], allLoops, scratchIntervals, scratchT);
-
-                    for (int s = 0; s < scratchIntervals.Count; s++)
-                    {
-                        var seg = scratchIntervals[s];
-                        outputRings.Add(new ProfileRing(
-                            [
-                                new ToolpathPoint(seg.Start.X, seg.Start.Y, z),
-                                new ToolpathPoint(seg.End.X, seg.End.Y, z)
-                            ],
-                            false));
-                        hasAnyStroke = true;
-                    }
+                    ringPts[i] = new ToolpathPoint((float)ring[i].x, (float)ring[i].y, z);
                 }
 
-                if (!hasAnyStroke)
-                {
-                    break;
-                }
+                allRings.Add(new ProfileRing(ringPts, true));
             }
         }
+
+        return allRings;
     }
 
     private static void EmitRing(
