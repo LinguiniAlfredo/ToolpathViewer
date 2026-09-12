@@ -695,5 +695,50 @@ public sealed class PathShapeTests
             Assert.InRange(aspect, 0.90f, 1.25f);
         }
     }
+
+    [Fact]
+    public void ImportMultipleFiles_IntoSameDocument_PreservesAllShapesAndCompilesTogether()
+    {
+        var doc = new ShapeDocument();
+
+        // 1. Initial shape: Circle
+        var circle = new CircleShape(0f, 0f, 0f, 10f);
+        doc.AddShape(circle);
+        Assert.Single(doc.Shapes);
+
+        // 2. Import Q_Logo.cls
+        Toolpath qToolpath = ClsToolpathParser.ParseText(QLogoCls, "Q_Logo.cls");
+        PathShape? qShape = ToolpathShapeConverter.ExtractShape(qToolpath);
+        Assert.NotNull(qShape);
+        doc.AddShape(qShape);
+        Assert.Equal(2, doc.Shapes.Count);
+
+        // 3. Import TwoSquares.cls
+        Toolpath twoSquaresToolpath = ClsToolpathParser.ParseText(TwoSquaresCls, "TwoSquares.cls");
+        PathShape? twoSquaresShape = ToolpathShapeConverter.ExtractShape(twoSquaresToolpath);
+        Assert.NotNull(twoSquaresShape);
+        doc.AddShape(twoSquaresShape);
+        Assert.Equal(3, doc.Shapes.Count);
+
+        // 4. Compile toolpath with all 3 shapes
+        Toolpath combined = doc.CompileToolpath("CombinedProject.h");
+        Assert.True(combined.Segments.Count > 50);
+
+        // Should have rapid transitions connecting circle -> Q logo -> two squares
+        int rapidCount = combined.Segments.Count(s => s.Type == SegmentType.Rapid);
+        Assert.True(rapidCount >= 2, $"Expected >=2 rapid transitions between shapes, got {rapidCount}");
+
+        // 5. Verify round-trip project serialization preserves all 3 shapes
+        var project = ToolpathProject.FromShapeDocument(doc, "MultiImportProject");
+        Assert.Equal(3, project.Shapes.Count);
+
+        var restoredDoc = new ShapeDocument();
+        project.ApplyTo(restoredDoc);
+        Assert.Equal(3, restoredDoc.Shapes.Count);
+        Assert.IsType<CircleShape>(restoredDoc.Shapes[0]);
+        Assert.IsType<PathShape>(restoredDoc.Shapes[1]);
+        Assert.IsType<PathShape>(restoredDoc.Shapes[2]);
+    }
 }
+
 

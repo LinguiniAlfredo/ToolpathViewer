@@ -14,7 +14,10 @@
                   MinHeight="550" MinWidth="850"
                   WindowStartupLocation="CenterScreen"
                   WindowBackdropType="Mica"
-                  ExtendsContentIntoTitleBar="True">
+                  ExtendsContentIntoTitleBar="True"
+                  AllowDrop="True"
+                  Drop="OnWindowDrop"
+                  DragOver="OnWindowDragOver">
 
     <Window.DataContext>
         <vm:MainViewModel x:Name="ViewModel" />
@@ -100,7 +103,7 @@
                             <ui:SymbolIcon Symbol="ArrowExportUp24" />
                         </MenuItem.Icon>
                     </MenuItem>
-                    <MenuItem Header="_Import Machine File (.h, .txt)..."
+                    <MenuItem Header="_Import Machine File (.h, .cls, .txt)..."
                               InputGestureText="Ctrl+I"
                               Command="{Binding ImportMachineFileCommand}">
                         <MenuItem.Icon>
@@ -112,6 +115,12 @@
                         <MenuItem.Icon>
                             <ui:SymbolIcon Symbol="Folder24" />
                         </MenuItem.Icon>
+                        <MenuItem Header="Q Logo (Q_Logo.cls)"
+                                  Command="{Binding LoadSampleCommand}"
+                                  CommandParameter="Q_Logo.cls" />
+                        <MenuItem Header="US Flag (Flag.cls)"
+                                  Command="{Binding LoadSampleCommand}"
+                                  CommandParameter="Flag.cls" />
                         <MenuItem Header="Box 4mm (Box4mm.h)"
                                   Command="{Binding LoadSampleCommand}"
                                   CommandParameter="Box4mm.h" />
@@ -335,7 +344,7 @@
                 <!-- Import Machine File Button -->
                 <ui:Button Appearance="Secondary"
                            Command="{Binding ImportMachineFileCommand}"
-                           ToolTip="Import Machine File (*.h, *.txt) [Ctrl+I]"
+                           ToolTip="Import Machine File (*.h, *.cls, *.txt) into Current Project [Ctrl+I]"
                            Margin="0,0,12,0">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="ArrowImport24" Margin="0,0,6,0" />

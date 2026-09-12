@@ -790,6 +790,25 @@ public sealed class MainViewModel : ObservableObject
             // Check if file contains embedded Ablation Studio project metadata
             if (ProjectSerializer.TryExtractMetadataFromHCode(content, out ToolpathProject? recoveredProject))
             {
+                if (CustomShapes.Shapes.Count > 0)
+                {
+                    // Current project has shapes: import recovered shapes into current project
+                    foreach (ShapeDto dto in recoveredProject.Shapes)
+                    {
+                        ToolpathShape shape = dto.ToShape();
+                        EnsureUniqueShapeName(shape);
+                        CustomShapes.AddShape(shape);
+                    }
+
+                    IsProjectModified = true;
+                    LoadedToolpath = CustomShapes.CompileToolpath($"{ProjectName}.h");
+                    ToolpathLoaded?.Invoke(LoadedToolpath, false);
+                    FitViewRequested?.Invoke();
+                    StatusText = $"Imported {recoveredProject.Shapes.Count} shape(s) from {Path.GetFileName(filePath)} into current project ({CustomShapes.Shapes.Count} total shapes).";
+                    return;
+                }
+
+                // Current canvas is empty: restore the project directly
                 CustomShapes.LoadFromProject(recoveredProject);
                 CurrentProjectPath = string.Empty;
                 CurrentFilePath = filePath;
@@ -809,20 +828,25 @@ public sealed class MainViewModel : ObservableObject
             Toolpath toolpath = await ToolpathParser.ParseFileAsync(filePath);
             PathShape? importedShape = ToolpathShapeConverter.ExtractShape(toolpath);
 
-            CustomShapes.Clear();
-            CurrentProjectPath = string.Empty;
-            CurrentFilePath = filePath;
-            ProjectName = Path.GetFileNameWithoutExtension(filePath);
-            IsProjectModified = true;
-
             if (importedShape is not null)
             {
+                EnsureUniqueShapeName(importedShape);
+
+                // Add to current project without clearing existing shapes
                 CustomShapes.AddShape(importedShape);
                 CustomShapes.SelectedShape = importedShape;
+                IsProjectModified = true;
+
+                // If current project was an empty "Untitled" canvas, adopt the file name for project name
+                if (CustomShapes.Shapes.Count == 1 && (string.IsNullOrEmpty(ProjectName) || ProjectName == "Untitled"))
+                {
+                    ProjectName = Path.GetFileNameWithoutExtension(filePath);
+                }
+
                 LoadedToolpath = CustomShapes.CompileToolpath($"{ProjectName}.h");
-                ToolpathLoaded?.Invoke(LoadedToolpath, true);
+                ToolpathLoaded?.Invoke(LoadedToolpath, false);
                 FitViewRequested?.Invoke();
-                StatusText = $"Imported '{importedShape.Name}' as editable shape ({importedShape.ContoursCount} contour(s), {LoadedToolpath.Segments.Count} segments).";
+                StatusText = $"Imported '{importedShape.Name}' into current project ({importedShape.ContoursCount} contour(s), {CustomShapes.Shapes.Count} total shape(s)).";
             }
             else
             {
@@ -839,6 +863,16 @@ public sealed class MainViewModel : ObservableObject
         finally
         {
             IsLoading = false;
+        }
+    }
+
+    private void EnsureUniqueShapeName(ToolpathShape shape)
+    {
+        string baseName = shape.Name;
+        int counter = 2;
+        while (CustomShapes.Shapes.Any(s => string.Equals(s.Name, shape.Name, StringComparison.OrdinalIgnoreCase)))
+        {
+            shape.Name = $"{baseName} ({counter++})";
         }
     }
 

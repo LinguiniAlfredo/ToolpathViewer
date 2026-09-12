@@ -106,4 +106,33 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             }
         }
     }
+
+    private void OnWindowDragOver(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            e.Effects = DragDropEffects.Copy;
+            e.Handled = true;
+        }
+        else
+        {
+            e.Effects = DragDropEffects.None;
+        }
+    }
+
+    private async void OnWindowDrop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            var files = (string[]?)e.Data.GetData(DataFormats.FileDrop);
+            if (files is { Length: > 0 } && DataContext is MainViewModel vm)
+            {
+                foreach (string file in files)
+                {
+                    await vm.OpenFileOrProjectAsync(file);
+                }
+            }
+            e.Handled = true;
+        }
+    }
 }
