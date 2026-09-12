@@ -237,7 +237,7 @@
                         <MenuItem.Icon>
                             <Grid Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Rectangle Width="16" Height="2" RadiusX="1" RadiusY="1"
-                                           Fill="{Binding RelativeSource={RelativeSource AncestorType=Control}, Path=Foreground}"
+                                           Fill="{DynamicResource TextFillColorPrimaryBrush}"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Grid>
                         </MenuItem.Icon>

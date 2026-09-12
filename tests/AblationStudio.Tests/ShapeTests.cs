@@ -1,4 +1,4 @@
-﻿using OpenTK.Mathematics;
+using OpenTK.Mathematics;
 using AblationStudio.Core.Models;
 using AblationStudio.Core.Parser;
 using AblationStudio.Core.Shapes;
@@ -349,11 +349,14 @@ public sealed class ShapeTests
     {
         var thread = new Thread(() =>
         {
-            var app = new System.Windows.Application();
-            var themeDict = new Wpf.Ui.Markup.ThemesDictionary { Theme = Wpf.Ui.Appearance.ApplicationTheme.Dark };
-            var controlsDict = new Wpf.Ui.Markup.ControlsDictionary();
-            app.Resources.MergedDictionaries.Add(themeDict);
-            app.Resources.MergedDictionaries.Add(controlsDict);
+            var app = System.Windows.Application.Current ?? new System.Windows.Application();
+            if (app.Resources.MergedDictionaries.Count == 0)
+            {
+                var themeDict = new Wpf.Ui.Markup.ThemesDictionary { Theme = Wpf.Ui.Appearance.ApplicationTheme.Dark };
+                var controlsDict = new Wpf.Ui.Markup.ControlsDictionary();
+                app.Resources.MergedDictionaries.Add(themeDict);
+                app.Resources.MergedDictionaries.Add(controlsDict);
+            }
 
             string xaml = @"
             <ToggleButton xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation""
@@ -379,6 +382,61 @@ public sealed class ShapeTests
             toggle.IsChecked = true;
             toggle.UpdateLayout();
             Assert.Equal("#FF000000", tb.Foreground.ToString());
+
+            win.Close();
+        });
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+    }
+
+    [Fact]
+    public void MenuItem_LineIcon_ResolvesThemeBrushAndRendersShape()
+    {
+        var thread = new Thread(() =>
+        {
+            var app = System.Windows.Application.Current ?? new System.Windows.Application();
+            if (app.Resources.MergedDictionaries.Count == 0)
+            {
+                var themeDict = new Wpf.Ui.Markup.ThemesDictionary { Theme = Wpf.Ui.Appearance.ApplicationTheme.Dark };
+                var controlsDict = new Wpf.Ui.Markup.ControlsDictionary();
+                app.Resources.MergedDictionaries.Add(themeDict);
+                app.Resources.MergedDictionaries.Add(controlsDict);
+            }
+
+            string xaml = @"
+            <Menu xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation""
+                  xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml""
+                  xmlns:ui=""http://schemas.lepo.co/wpfui/2022/xaml"">
+                <MenuItem Header=""Tools"">
+                    <MenuItem Header=""Line Tool"">
+                        <MenuItem.Icon>
+                            <Grid Width=""16"" Height=""16"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"">
+                                <Rectangle Width=""16"" Height=""2"" RadiusX=""1"" RadiusY=""1""
+                                           Fill=""{DynamicResource TextFillColorPrimaryBrush}""
+                                           HorizontalAlignment=""Center"" VerticalAlignment=""Center"" />
+                            </Grid>
+                        </MenuItem.Icon>
+                    </MenuItem>
+                </MenuItem>
+            </Menu>";
+
+            var menu = (System.Windows.Controls.Menu)System.Windows.Markup.XamlReader.Parse(xaml);
+            var win = new System.Windows.Window { Content = menu };
+            win.Show();
+
+            var topItem = (System.Windows.Controls.MenuItem)menu.Items[0];
+            topItem.IsSubmenuOpen = true;
+            topItem.UpdateLayout();
+
+            var lineItem = (System.Windows.Controls.MenuItem)topItem.Items[0];
+            var iconGrid = (System.Windows.Controls.Grid)lineItem.Icon;
+            var rect = (System.Windows.Shapes.Rectangle)iconGrid.Children[0];
+
+            Assert.NotNull(rect.Fill);
+            Assert.Equal(16, rect.Width);
+            Assert.Equal(2, rect.Height);
 
             win.Close();
         });
