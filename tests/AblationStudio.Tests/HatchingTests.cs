@@ -459,6 +459,46 @@ public sealed class HatchingTests
     }
 
     [Fact]
+    public void ExportToHCode_MultipleShapesWithProfileAndHatch_CorrectlyNotatesFirstAndSubsequentProfiles()
+    {
+        var doc = new ShapeDocument();
+
+        var circle = new CircleShape(10f, 10f, 0f, 5f, segments: 16) { Name = "Shape1" };
+        circle.Hatch.IsEnabled = true;
+        circle.Hatch.Pattern = HatchPatternType.FollowProfile;
+        circle.Hatch.Stepover = 1.0f;
+        circle.Hatch.KeepBoundary = true;
+        doc.AddShape(circle);
+
+        var rect = new RectangleShape(30f, 10f, 0f, 10f, 10f) { Name = "Shape2" };
+        rect.Hatch.IsEnabled = true;
+        rect.Hatch.Pattern = HatchPatternType.ZigZag;
+        rect.Hatch.Stepover = 1.0f;
+        rect.Hatch.KeepBoundary = true;
+        doc.AddShape(rect);
+
+        string hCode = doc.ExportToHCode("TwoShapes.h");
+
+        // Split lines and find section headers in order
+        string[] lines = hCode.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries);
+        var sectionHeaders = lines
+            .Select(l => l.Trim())
+            .Where(l => l.StartsWith("PFL") || l.StartsWith("HCH"))
+            .ToList();
+
+        // Must have exactly:
+        // 1. PFL 1 ; Profile (Shape 1 profile)
+        // 2. HCH 1 ; Hatch   (Shape 1 hatch)
+        // 3. PFL 1 ; Profile (Shape 2 profile)
+        // 4. HCH 1 ; Hatch   (Shape 2 hatch)
+        Assert.Equal(4, sectionHeaders.Count);
+        Assert.StartsWith("PFL 1", sectionHeaders[0]);
+        Assert.StartsWith("HCH 1", sectionHeaders[1]);
+        Assert.StartsWith("PFL 1", sectionHeaders[2]);
+        Assert.StartsWith("HCH 1", sectionHeaders[3]);
+    }
+
+    [Fact]
     public void Hatching_ZigZag_LineSkip_TraversesEveryNthLineAndCoversAllLines()
     {
         // 10x10 mm rectangle with 1mm stepover -> 10 scanlines

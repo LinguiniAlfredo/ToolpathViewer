@@ -143,7 +143,6 @@ public sealed class ShapeDocument
 
     public string ExportToHCode(
         string name = "CustomShapes.h",
-        bool embedMetadata = false,
         ProjectProcessSettings? settings = null)
     {
         var sb = new StringBuilder();
@@ -152,38 +151,42 @@ public sealed class ShapeDocument
 
         if (_shapes.Count == 0)
         {
-            sb.AppendLine("HCH 1 1 ;Layer 1");
             sb.AppendLine("SL X0.0000 Y0.0000 Z0.0000 M05");
-            string emptyCode = sb.ToString();
-            return embedMetadata ? ProjectSerializer.EmbedMetadataInHCode(emptyCode, ToProject(name, settings)) : emptyCode;
+            return sb.ToString();
         }
 
-        int firstLayer = _shapes[0].LayerId;
-        sb.AppendLine($"HCH {firstLayer} 1 ;Layer {firstLayer}");
         sb.AppendLine("SL X0.0000 Y0.0000 Z0.0000 M05");
 
-        int currentLayer = firstLayer;
-        bool inHatch = false;
+        int currentLayer = -1;
+        SegmentType? activeType = null;
         Toolpath toolpath = CompileToolpath(name, includeHomeTransitions: true);
 
         foreach (ToolpathSegment seg in toolpath.Segments)
         {
-            if (seg.LayerId != currentLayer)
+            if (seg.Type == SegmentType.Cut)
             {
-                currentLayer = seg.LayerId;
-                sb.AppendLine($"HCH {currentLayer} 1 ;Layer {currentLayer}");
-                inHatch = false;
+                if (activeType != SegmentType.Cut || seg.LayerId != currentLayer)
+                {
+                    currentLayer = seg.LayerId;
+                    sb.AppendLine($"PFL {currentLayer} ; Profile");
+                    activeType = SegmentType.Cut;
+                }
             }
-
-            if (seg.Type == SegmentType.Hatch && !inHatch)
+            else if (seg.Type == SegmentType.Hatch)
             {
-                sb.AppendLine($"HCH {currentLayer} ; Hatch");
-                inHatch = true;
+                if (activeType != SegmentType.Hatch || seg.LayerId != currentLayer)
+                {
+                    currentLayer = seg.LayerId;
+                    sb.AppendLine($"HCH {currentLayer} ; Hatch");
+                    activeType = SegmentType.Hatch;
+                }
             }
-            else if (seg.Type == SegmentType.Cut && inHatch)
+            else if (seg.Type == SegmentType.Rapid)
             {
-                sb.AppendLine($"PFL {currentLayer} ; Profile");
-                inHatch = false;
+                if (seg.LayerId != currentLayer)
+                {
+                    currentLayer = seg.LayerId;
+                }
             }
 
             string command = (seg.Type == SegmentType.Cut || seg.Type == SegmentType.Hatch) ? "M03" : "M05";
@@ -197,8 +200,7 @@ public sealed class ShapeDocument
             sb.AppendLine("SL X0.0000 Y0.0000 Z0.0000 M05");
         }
 
-        string rawHCode = sb.ToString();
-        return embedMetadata ? ProjectSerializer.EmbedMetadataInHCode(rawHCode, ToProject(name, settings)) : rawHCode;
+        return sb.ToString();
     }
 
     private void OnShapeChanged(ToolpathShape shape)

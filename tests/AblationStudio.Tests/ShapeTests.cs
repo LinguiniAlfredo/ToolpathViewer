@@ -118,7 +118,7 @@ public sealed class ShapeTests
 
         string hCode = doc.ExportToHCode("TestExport.h");
 
-        Assert.Contains("HCH 1 1", hCode);
+        Assert.Contains("PFL 1 ; Profile", hCode);
         Assert.Contains("SL X0.0000 Y0.0000 Z0.0000 M05", hCode);
         Assert.Contains("SL X10.0000 Y0.0000 Z0.0000 M03", hCode);
     }

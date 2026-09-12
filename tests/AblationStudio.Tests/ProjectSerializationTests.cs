@@ -185,30 +185,46 @@ public sealed class ProjectSerializationTests
     }
 
     [Fact]
-    public void ExportToHCode_WithEmbeddedMetadata_ProducesMachineValidGCodeAndRecoversShapes()
+    public void ExportToHCode_ProducesCleanMachineCode_WithoutMetadataComments()
     {
         var doc = new ShapeDocument();
         doc.AddShape(new CircleShape(15f, 25f, 0f, 10f, segments: 32) { Name = "LaserCircle" });
         doc.AddShape(new RectangleShape(0f, 0f, 0f, 20f, 10f) { Name = "LaserRect" });
 
-        // Export with embedMetadata = true
-        string hCode = doc.ExportToHCode("MachineJob.h", embedMetadata: true);
+        // Export clean machine instructions
+        string hCode = doc.ExportToHCode("MachineJob.h");
 
-        // 1. Validate that metadata is embedded in comments
-        Assert.Contains("; ABLATION_STUDIO_PROJECT_BEGIN", hCode);
-        Assert.Contains("; ABLATION_STUDIO_PROJECT_END", hCode);
+        // 1. Validate that NO project metadata comments are embedded
+        Assert.DoesNotContain("ABLATION_STUDIO_PROJECT_BEGIN", hCode);
+        Assert.DoesNotContain("ABLATION_STUDIO_PROJECT_END", hCode);
 
-        // 2. Validate that standard G-code commands are present
-        Assert.Contains("HCH 1 1", hCode);
+        // 2. Validate that standard NC commands are present
+        Assert.Contains("PFL 1 ; Profile", hCode);
         Assert.Contains("SL X", hCode);
 
-        // 3. Verify that ToolpathParser parses the file without errors, ignoring comment metadata lines
+        // 3. Verify that ToolpathParser parses the file without errors
         Toolpath parsedToolpath = ToolpathParser.ParseText(hCode, "MachineJob.h");
         Assert.True(parsedToolpath.Segments.Count > 0);
         Assert.True(parsedToolpath.Statistics.CutSegmentsCount > 0);
+    }
 
-        // 4. Verify that ProjectSerializer can extract and reconstruct the original shapes
-        bool extracted = ProjectSerializer.TryExtractMetadataFromHCode(hCode, out ToolpathProject? recoveredProject);
+    [Fact]
+    public void ProjectSerializer_EmbedAndExtractMetadata_RoundTripsSuccessfully()
+    {
+        var doc = new ShapeDocument();
+        doc.AddShape(new CircleShape(15f, 25f, 0f, 10f, segments: 32) { Name = "LaserCircle" });
+        doc.AddShape(new RectangleShape(0f, 0f, 0f, 20f, 10f) { Name = "LaserRect" });
+
+        string rawHCode = doc.ExportToHCode("MachineJob.h");
+        ToolpathProject proj = doc.ToProject("MachineJob");
+
+        // Embed metadata manually via serializer
+        string embeddedHCode = ProjectSerializer.EmbedMetadataInHCode(rawHCode, proj);
+        Assert.Contains("; ABLATION_STUDIO_PROJECT_BEGIN", embeddedHCode);
+        Assert.Contains("; ABLATION_STUDIO_PROJECT_END", embeddedHCode);
+
+        // Extract metadata
+        bool extracted = ProjectSerializer.TryExtractMetadataFromHCode(embeddedHCode, out ToolpathProject? recoveredProject);
         Assert.True(extracted);
         Assert.NotNull(recoveredProject);
         Assert.Equal(2, recoveredProject.Shapes.Count);

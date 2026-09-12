@@ -438,6 +438,7 @@ public sealed class MainViewModel : ObservableObject
     public ICommand SaveProjectCommand { get; }
     public ICommand SaveProjectAsCommand { get; }
     public ICommand OpenProjectCommand { get; }
+    public ICommand OpenMachineFileCommand { get; }
     public ICommand ExportMachineFileCommand { get; }
     public ICommand ImportMachineFileCommand { get; }
     public ICommand FitViewCommand { get; }
@@ -464,6 +465,7 @@ public sealed class MainViewModel : ObservableObject
         SaveProjectAsCommand = new RelayCommand(async () => await ExecuteSaveProjectAsAsync(), () => CustomShapes.Shapes.Count > 0 || !string.IsNullOrEmpty(CurrentProjectPath));
         OpenProjectCommand = new RelayCommand(async () => await ExecuteOpenProjectAsync());
         OpenFileCommand = OpenProjectCommand;
+        OpenMachineFileCommand = new RelayCommand(async () => await ExecuteOpenMachineFileAsync());
         ExportMachineFileCommand = new RelayCommand(ExecuteExportMachineFile, () => CustomShapes.Shapes.Count > 0 || HasLoadedFile);
         ImportMachineFileCommand = new RelayCommand(async () => await ExecuteImportMachineFileAsync());
         ExportToolpathCommand = ExportMachineFileCommand;
@@ -719,9 +721,63 @@ public sealed class MainViewModel : ObservableObject
         {
             await LoadProjectFileAsync(filePath);
         }
+        else if (ext is ".cls")
+        {
+            await ImportContourShapeAsync(filePath);
+        }
         else
         {
-            await ImportMachineFileAsync(filePath);
+            await LoadMachineFileAsync(filePath);
+        }
+    }
+
+    public async Task ExecuteOpenMachineFileAsync()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Open Machine Toolpath for Simulation",
+            Filter = "Machine Toolpaths (*.h;*.txt)|*.h;*.txt|Heidenhain Toolpath (*.h)|*.h|Text Files (*.txt)|*.txt|All Files (*.*)|*.*",
+            InitialDirectory = @"c:\Users\m_del\Source\vibe_test\example_toolpaths"
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            await LoadMachineFileAsync(dialog.FileName);
+        }
+    }
+
+    public async Task LoadMachineFileAsync(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+        {
+            StatusText = $"File not found: {filePath}";
+            return;
+        }
+
+        try
+        {
+            IsLoading = true;
+            StatusText = $"Loading machine toolpath {Path.GetFileName(filePath)}...";
+
+            Toolpath toolpath = await ToolpathParser.ParseFileAsync(filePath);
+            CustomShapes.Clear();
+            LoadedToolpath = toolpath;
+            CurrentFilePath = filePath;
+            CurrentProjectPath = string.Empty;
+            ProjectName = Path.GetFileNameWithoutExtension(filePath);
+            IsProjectModified = false;
+
+            ToolpathLoaded?.Invoke(toolpath, true);
+            FitViewRequested?.Invoke();
+            StatusText = $"Loaded machine toolpath {toolpath.Name}: {toolpath.Segments.Count} segments ({toolpath.Statistics.CutSegmentsCount} cut, {toolpath.Statistics.RapidSegmentsCount} jump). Ready for simulation.";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Error loading machine file: {ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
         }
     }
 
@@ -761,8 +817,8 @@ public sealed class MainViewModel : ObservableObject
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Import Machine Toolpath File",
-            Filter = ToolpathProject.MachineFileFilter,
+            Title = "Import Contour Shape or Machine File",
+            Filter = "Cutter Location File (*.cls)|*.cls|Machine Toolpaths (*.h;*.txt)|*.h;*.txt|All Supported Files (*.cls;*.h;*.txt)|*.cls;*.h;*.txt|All Files (*.*)|*.*",
             InitialDirectory = @"c:\Users\m_del\Source\vibe_test\example_toolpaths"
         };
 
@@ -780,51 +836,30 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
+        string ext = Path.GetExtension(filePath).ToLowerInvariant();
+        if (ext is ".cls")
+        {
+            await ImportContourShapeAsync(filePath);
+        }
+        else
+        {
+            await LoadMachineFileAsync(filePath);
+        }
+    }
+
+    public async Task ImportContourShapeAsync(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+        {
+            StatusText = $"File not found: {filePath}";
+            return;
+        }
+
         try
         {
             IsLoading = true;
-            StatusText = $"Importing {Path.GetFileName(filePath)}...";
+            StatusText = $"Importing contour shape from {Path.GetFileName(filePath)}...";
 
-            string content = await File.ReadAllTextAsync(filePath);
-
-            // Check if file contains embedded Ablation Studio project metadata
-            if (ProjectSerializer.TryExtractMetadataFromHCode(content, out ToolpathProject? recoveredProject))
-            {
-                if (CustomShapes.Shapes.Count > 0)
-                {
-                    // Current project has shapes: import recovered shapes into current project
-                    foreach (ShapeDto dto in recoveredProject.Shapes)
-                    {
-                        ToolpathShape shape = dto.ToShape();
-                        EnsureUniqueShapeName(shape);
-                        CustomShapes.AddShape(shape);
-                    }
-
-                    IsProjectModified = true;
-                    LoadedToolpath = CustomShapes.CompileToolpath($"{ProjectName}.h");
-                    ToolpathLoaded?.Invoke(LoadedToolpath, false);
-                    FitViewRequested?.Invoke();
-                    StatusText = $"Imported {recoveredProject.Shapes.Count} shape(s) from {Path.GetFileName(filePath)} into current project ({CustomShapes.Shapes.Count} total shapes).";
-                    return;
-                }
-
-                // Current canvas is empty: restore the project directly
-                CustomShapes.LoadFromProject(recoveredProject);
-                CurrentProjectPath = string.Empty;
-                CurrentFilePath = filePath;
-                ProjectName = recoveredProject.Name;
-                IsProjectModified = false;
-
-                SimulationFeedrate = recoveredProject.Settings.DefaultFeedrate;
-                LoadedToolpath = CustomShapes.CompileToolpath($"{ProjectName}.h");
-                ToolpathLoaded?.Invoke(LoadedToolpath, true);
-                FitViewRequested?.Invoke();
-
-                StatusText = $"Restored editable shapes from machine file {Path.GetFileName(filePath)} ({recoveredProject.Shapes.Count} shapes).";
-                return;
-            }
-
-            // Otherwise extract editable shape from the machine toolpath
             Toolpath toolpath = await ToolpathParser.ParseFileAsync(filePath);
             PathShape? importedShape = ToolpathShapeConverter.ExtractShape(toolpath);
 
@@ -850,15 +885,12 @@ public sealed class MainViewModel : ObservableObject
             }
             else
             {
-                LoadedToolpath = toolpath;
-                ToolpathLoaded?.Invoke(toolpath, true);
-                FitViewRequested?.Invoke();
-                StatusText = $"Loaded machine toolpath {toolpath.Name}: {toolpath.Segments.Count} segments ({toolpath.Statistics.CutSegmentsCount} cut, {toolpath.Statistics.RapidSegmentsCount} jump).";
+                StatusText = $"No valid contours found in {Path.GetFileName(filePath)}.";
             }
         }
         catch (Exception ex)
         {
-            StatusText = $"Error importing machine file: {ex.Message}";
+            StatusText = $"Error importing contour shape: {ex.Message}";
         }
         finally
         {
@@ -971,7 +1003,7 @@ public sealed class MainViewModel : ObservableObject
             };
 
             string hCode = CustomShapes.Shapes.Count > 0
-                ? CustomShapes.ExportToHCode(Path.GetFileName(dialog.FileName), embedMetadata: true, settings)
+                ? CustomShapes.ExportToHCode(Path.GetFileName(dialog.FileName), settings)
                 : ExportToolpathToH(LoadedToolpath, Path.GetFileName(dialog.FileName));
 
             File.WriteAllText(dialog.FileName, hCode);
@@ -987,13 +1019,10 @@ public sealed class MainViewModel : ObservableObject
 
         if (toolpath.Segments.Count == 0)
         {
-            sb.AppendLine("HCH 1 1 ;Layer 1");
             sb.AppendLine("SL X0.0000 Y0.0000 Z0.0000 M05");
             return sb.ToString();
         }
 
-        int firstLayer = toolpath.Segments[0].LayerId;
-        sb.AppendLine($"HCH {firstLayer} 1 ;Layer {firstLayer}");
         sb.AppendLine("SL X0.0000 Y0.0000 Z0.0000 M05");
 
         var origin = new ToolpathPoint(0f, 0f, 0f);
@@ -1004,13 +1033,34 @@ public sealed class MainViewModel : ObservableObject
             sb.AppendLine($"SL X{firstStart.X:F4} Y{firstStart.Y:F4} Z{firstStart.Z:F4} M05");
         }
 
-        int currentLayer = firstLayer;
+        int currentLayer = -1;
+        SegmentType? activeType = null;
         foreach (ToolpathSegment seg in toolpath.Segments)
         {
-            if (seg.LayerId != currentLayer)
+            if (seg.Type == SegmentType.Cut)
             {
-                currentLayer = seg.LayerId;
-                sb.AppendLine($"HCH {currentLayer} 1 ;Layer {currentLayer}");
+                if (activeType != SegmentType.Cut || seg.LayerId != currentLayer)
+                {
+                    currentLayer = seg.LayerId;
+                    sb.AppendLine($"PFL {currentLayer} ; Profile");
+                    activeType = SegmentType.Cut;
+                }
+            }
+            else if (seg.Type == SegmentType.Hatch)
+            {
+                if (activeType != SegmentType.Hatch || seg.LayerId != currentLayer)
+                {
+                    currentLayer = seg.LayerId;
+                    sb.AppendLine($"HCH {currentLayer} ; Hatch");
+                    activeType = SegmentType.Hatch;
+                }
+            }
+            else if (seg.Type == SegmentType.Rapid)
+            {
+                if (seg.LayerId != currentLayer)
+                {
+                    currentLayer = seg.LayerId;
+                }
             }
 
             string cmd = (seg.Type == SegmentType.Cut || seg.Type == SegmentType.Hatch) ? "M03" : "M05";
