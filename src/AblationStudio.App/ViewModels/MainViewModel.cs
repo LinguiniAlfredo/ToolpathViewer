@@ -4,6 +4,7 @@ using System.Windows.Input;
 using Microsoft.Win32;
 using AblationStudio.Core.Models;
 using AblationStudio.Core.Parser;
+using AblationStudio.Core.Projects;
 using AblationStudio.Core.Shapes;
 using AblationStudio.Core.Simulation;
 using AblationStudio.Rendering.Camera;
@@ -14,7 +15,10 @@ public sealed class MainViewModel : ObservableObject
 {
     private Toolpath _loadedToolpath = Toolpath.Empty;
     private string _currentFilePath = string.Empty;
-    private string _statusText = "Ready. Select a shape tool to draw or click 'Open Toolpath'.";
+    private string _currentProjectPath = string.Empty;
+    private string _projectName = "Untitled";
+    private bool _isProjectModified;
+    private string _statusText = "Ready. Select a shape tool to draw, or open a project / toolpath.";
     private bool _isLoading;
     private bool _showCuts = true;
     private bool _showHatch = true;
@@ -98,6 +102,50 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _currentFilePath, value);
     }
 
+    public string CurrentProjectPath
+    {
+        get => _currentProjectPath;
+        private set
+        {
+            if (SetProperty(ref _currentProjectPath, value))
+            {
+                OnPropertyChanged(nameof(ProjectDisplayName));
+                OnPropertyChanged(nameof(WindowTitle));
+                (SaveProjectCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (SaveProjectAsCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string ProjectName
+    {
+        get => _projectName;
+        set
+        {
+            if (SetProperty(ref _projectName, value))
+            {
+                OnPropertyChanged(nameof(ProjectDisplayName));
+                OnPropertyChanged(nameof(WindowTitle));
+            }
+        }
+    }
+
+    public bool IsProjectModified
+    {
+        get => _isProjectModified;
+        private set
+        {
+            if (SetProperty(ref _isProjectModified, value))
+            {
+                OnPropertyChanged(nameof(WindowTitle));
+            }
+        }
+    }
+
+    public string ProjectDisplayName => string.IsNullOrEmpty(_currentProjectPath)
+        ? _projectName
+        : Path.GetFileName(_currentProjectPath);
+
     public string StatusText
     {
         get => _statusText;
@@ -112,9 +160,24 @@ public sealed class MainViewModel : ObservableObject
 
     public bool HasLoadedFile => LoadedToolpath.Segments.Count > 0;
 
-    public string WindowTitle => string.IsNullOrEmpty(LoadedToolpath.Name)
-        ? "Ablation Studio"
-        : $"Ablation Studio - {LoadedToolpath.Name}";
+    public string WindowTitle
+    {
+        get
+        {
+            string dirty = _isProjectModified ? " *" : "";
+            if (!string.IsNullOrEmpty(_currentProjectPath))
+            {
+                return $"Ablation Studio - {Path.GetFileName(_currentProjectPath)}{dirty}";
+            }
+            if (CustomShapes.Shapes.Count > 0)
+            {
+                return $"Ablation Studio - {_projectName}{dirty}";
+            }
+            return string.IsNullOrEmpty(LoadedToolpath.Name)
+                ? "Ablation Studio"
+                : $"Ablation Studio - {LoadedToolpath.Name}";
+        }
+    }
 
     public string FileName => string.IsNullOrEmpty(LoadedToolpath.Name) ? "None" : LoadedToolpath.Name;
 
@@ -344,6 +407,11 @@ public sealed class MainViewModel : ObservableObject
     // Commands
     public ICommand NewFileCommand { get; }
     public ICommand OpenFileCommand { get; }
+    public ICommand SaveProjectCommand { get; }
+    public ICommand SaveProjectAsCommand { get; }
+    public ICommand OpenProjectCommand { get; }
+    public ICommand ExportMachineFileCommand { get; }
+    public ICommand ImportMachineFileCommand { get; }
     public ICommand ReloadCommand { get; }
     public ICommand FitViewCommand { get; }
     public ICommand SetPresetCommand { get; }
@@ -363,8 +431,15 @@ public sealed class MainViewModel : ObservableObject
     public MainViewModel()
     {
         NewFileCommand = new RelayCommand(ExecuteNewFile);
-        OpenFileCommand = new RelayCommand(ExecuteOpenFile);
-        ReloadCommand = new RelayCommand(async () => await ExecuteReloadAsync(), () => !string.IsNullOrEmpty(CurrentFilePath));
+        SaveProjectCommand = new RelayCommand(async () => await ExecuteSaveProjectAsync(), () => CustomShapes.Shapes.Count > 0 || !string.IsNullOrEmpty(CurrentProjectPath));
+        SaveProjectAsCommand = new RelayCommand(async () => await ExecuteSaveProjectAsAsync(), () => CustomShapes.Shapes.Count > 0 || !string.IsNullOrEmpty(CurrentProjectPath));
+        OpenProjectCommand = new RelayCommand(async () => await ExecuteOpenProjectAsync());
+        OpenFileCommand = OpenProjectCommand;
+        ExportMachineFileCommand = new RelayCommand(ExecuteExportMachineFile, () => CustomShapes.Shapes.Count > 0 || HasLoadedFile);
+        ImportMachineFileCommand = new RelayCommand(async () => await ExecuteImportMachineFileAsync());
+        ExportToolpathCommand = ExportMachineFileCommand;
+
+        ReloadCommand = new RelayCommand(async () => await ExecuteReloadAsync(), () => !string.IsNullOrEmpty(CurrentFilePath) || !string.IsNullOrEmpty(CurrentProjectPath));
         FitViewCommand = new RelayCommand(() => FitViewRequested?.Invoke(), () => HasLoadedFile);
         SetPresetCommand = new RelayCommand<string>(ExecuteSetPreset);
         ToggleThemeCommand = new RelayCommand(() => IsDarkTheme = !IsDarkTheme);
@@ -385,7 +460,6 @@ public sealed class MainViewModel : ObservableObject
         ClearAllShapesCommand = new RelayCommand(() => CustomShapes.Clear(), () => CustomShapes.Shapes.Count > 0);
         DeselectShapeCommand = new RelayCommand(() => CustomShapes.SelectedShape = null, () => HasSelectedShape);
         DuplicateSelectedShapeCommand = new RelayCommand(ExecuteDuplicateSelectedShape, () => HasSelectedShape);
-        ExportToolpathCommand = new RelayCommand(ExecuteExportToolpath, () => CustomShapes.Shapes.Count > 0 || HasLoadedFile);
 
         TogglePlaySimulationCommand = new RelayCommand(ExecuteTogglePlaySimulation, () => HasSimulation);
         StopSimulationCommand = new RelayCommand(ExecuteStopSimulation, () => HasSimulation);
@@ -501,9 +575,12 @@ public sealed class MainViewModel : ObservableObject
         CustomShapes.Clear();
         LoadedToolpath = Toolpath.Empty;
         CurrentFilePath = string.Empty;
+        CurrentProjectPath = string.Empty;
+        ProjectName = "Untitled";
+        IsProjectModified = false;
         ActiveTool = ShapeToolType.Select;
         ToolpathLoaded?.Invoke(LoadedToolpath, false);
-        StatusText = "New canvas ready. Select a shape tool to begin drawing.";
+        StatusText = "New project canvas ready. Select a shape tool to begin drawing.";
         RequestRender?.Invoke();
         FitViewRequested?.Invoke();
     }
@@ -513,22 +590,153 @@ public sealed class MainViewModel : ObservableObject
         System.Windows.Application.Current.Shutdown();
     }
 
-    private void ExecuteOpenFile()
+    public async Task ExecuteSaveProjectAsync()
+    {
+        if (string.IsNullOrEmpty(CurrentProjectPath))
+        {
+            await ExecuteSaveProjectAsAsync();
+            return;
+        }
+
+        await SaveProjectInternalAsync(CurrentProjectPath);
+    }
+
+    public async Task ExecuteSaveProjectAsAsync()
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "Save Project",
+            Filter = ToolpathProject.ProjectFileFilter,
+            DefaultExt = ToolpathProject.ProjectExtension,
+            FileName = string.IsNullOrEmpty(ProjectName) || ProjectName == "Untitled"
+                ? "Untitled.abproj"
+                : (ProjectName.EndsWith(ToolpathProject.ProjectExtension, StringComparison.OrdinalIgnoreCase) || ProjectName.EndsWith(ToolpathProject.JsonExtension, StringComparison.OrdinalIgnoreCase)
+                    ? ProjectName
+                    : $"{ProjectName}.abproj")
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            await SaveProjectInternalAsync(dialog.FileName);
+        }
+    }
+
+    private async Task SaveProjectInternalAsync(string filePath)
+    {
+        try
+        {
+            IsLoading = true;
+            StatusText = $"Saving project to {Path.GetFileName(filePath)}...";
+
+            var settings = new ProjectProcessSettings
+            {
+                DefaultFeedrate = SimulationFeedrate,
+                Units = "mm"
+            };
+
+            ToolpathProject project = CustomShapes.ToProject(Path.GetFileNameWithoutExtension(filePath), settings);
+            await ProjectSerializer.SaveProjectAsync(project, filePath);
+
+            CurrentProjectPath = filePath;
+            ProjectName = Path.GetFileNameWithoutExtension(filePath);
+            IsProjectModified = false;
+            StatusText = $"Project saved to {Path.GetFileName(filePath)} ({project.Shapes.Count} shapes).";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Error saving project: {ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    public async Task ExecuteOpenProjectAsync()
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Open Toolpath File",
-            Filter = "Toolpath Files (*.h;*.txt)|*.h;*.txt|All Files (*.*)|*.*",
+            Title = "Open Project or Machine File",
+            Filter = "All Supported Files (*.abproj;*.json;*.h;*.txt)|*.abproj;*.json;*.h;*.txt|" +
+                     "Ablation Studio Project (*.abproj;*.json)|*.abproj;*.json|" +
+                     "Laser Toolpath (*.h;*.txt)|*.h;*.txt|" +
+                     "All Files (*.*)|*.*",
             InitialDirectory = @"c:\Users\m_del\Source\vibe_test\example_toolpaths"
         };
 
         if (dialog.ShowDialog() == true)
         {
-            _ = LoadFileAsync(dialog.FileName);
+            await OpenFileOrProjectAsync(dialog.FileName);
         }
     }
 
-    public async Task LoadFileAsync(string filePath)
+    public async Task OpenFileOrProjectAsync(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+        {
+            StatusText = $"File not found: {filePath}";
+            return;
+        }
+
+        string ext = Path.GetExtension(filePath).ToLowerInvariant();
+        if (ext is ".abproj" or ".json")
+        {
+            await LoadProjectFileAsync(filePath);
+        }
+        else
+        {
+            await ImportMachineFileAsync(filePath);
+        }
+    }
+
+    public async Task LoadProjectFileAsync(string filePath)
+    {
+        try
+        {
+            IsLoading = true;
+            StatusText = $"Loading project {Path.GetFileName(filePath)}...";
+
+            ToolpathProject project = await ProjectSerializer.LoadProjectAsync(filePath);
+
+            CustomShapes.LoadFromProject(project);
+            CurrentProjectPath = filePath;
+            CurrentFilePath = string.Empty;
+            ProjectName = project.Name;
+            IsProjectModified = false;
+
+            SimulationFeedrate = project.Settings.DefaultFeedrate;
+            LoadedToolpath = CustomShapes.CompileToolpath($"{ProjectName}.h");
+            ToolpathLoaded?.Invoke(LoadedToolpath, true);
+            FitViewRequested?.Invoke();
+
+            StatusText = $"Loaded project '{project.Name}': {CustomShapes.Shapes.Count} shapes, {LoadedToolpath.Segments.Count} segments.";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Error loading project: {ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    public async Task ExecuteImportMachineFileAsync()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Import Machine Toolpath File",
+            Filter = ToolpathProject.MachineFileFilter,
+            InitialDirectory = @"c:\Users\m_del\Source\vibe_test\example_toolpaths"
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            await ImportMachineFileAsync(dialog.FileName);
+        }
+    }
+
+    public async Task ImportMachineFileAsync(string filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
         {
@@ -539,19 +747,44 @@ public sealed class MainViewModel : ObservableObject
         try
         {
             IsLoading = true;
-            StatusText = $"Loading {Path.GetFileName(filePath)}...";
+            StatusText = $"Importing {Path.GetFileName(filePath)}...";
 
+            string content = await File.ReadAllTextAsync(filePath);
+
+            // Check if file contains embedded Ablation Studio project metadata
+            if (ProjectSerializer.TryExtractMetadataFromHCode(content, out ToolpathProject? recoveredProject))
+            {
+                CustomShapes.LoadFromProject(recoveredProject);
+                CurrentProjectPath = string.Empty;
+                CurrentFilePath = filePath;
+                ProjectName = recoveredProject.Name;
+                IsProjectModified = false;
+
+                SimulationFeedrate = recoveredProject.Settings.DefaultFeedrate;
+                LoadedToolpath = CustomShapes.CompileToolpath($"{ProjectName}.h");
+                ToolpathLoaded?.Invoke(LoadedToolpath, true);
+                FitViewRequested?.Invoke();
+
+                StatusText = $"Restored editable shapes from machine file {Path.GetFileName(filePath)} ({recoveredProject.Shapes.Count} shapes).";
+                return;
+            }
+
+            // Otherwise load as standard raw toolpath segments
             Toolpath toolpath = await ToolpathParser.ParseFileAsync(filePath);
-
+            CustomShapes.Clear();
+            CurrentProjectPath = string.Empty;
             CurrentFilePath = filePath;
-            LoadedToolpath = toolpath;
+            ProjectName = Path.GetFileName(filePath);
+            IsProjectModified = false;
 
+            LoadedToolpath = toolpath;
             ToolpathLoaded?.Invoke(toolpath, true);
-            StatusText = $"Loaded {toolpath.Name}: {toolpath.Segments.Count} segments ({toolpath.Statistics.CutSegmentsCount} cut, {toolpath.Statistics.RapidSegmentsCount} rapid).";
+            FitViewRequested?.Invoke();
+            StatusText = $"Loaded machine toolpath {toolpath.Name}: {toolpath.Segments.Count} segments ({toolpath.Statistics.CutSegmentsCount} cut, {toolpath.Statistics.RapidSegmentsCount} rapid).";
         }
         catch (Exception ex)
         {
-            StatusText = $"Error loading file: {ex.Message}";
+            StatusText = $"Error importing machine file: {ex.Message}";
         }
         finally
         {
@@ -559,11 +792,20 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    public async Task LoadFileAsync(string filePath)
+    {
+        await OpenFileOrProjectAsync(filePath);
+    }
+
     private async Task ExecuteReloadAsync()
     {
-        if (!string.IsNullOrEmpty(CurrentFilePath))
+        if (!string.IsNullOrEmpty(CurrentProjectPath) && File.Exists(CurrentProjectPath))
         {
-            await LoadFileAsync(CurrentFilePath);
+            await LoadProjectFileAsync(CurrentProjectPath);
+        }
+        else if (!string.IsNullOrEmpty(CurrentFilePath) && File.Exists(CurrentFilePath))
+        {
+            await ImportMachineFileAsync(CurrentFilePath);
         }
     }
 
@@ -585,15 +827,20 @@ public sealed class MainViewModel : ObservableObject
         string fullPath = Path.Combine(@"c:\Users\m_del\Source\vibe_test\example_toolpaths", sampleFileName);
         if (File.Exists(fullPath))
         {
-            await LoadFileAsync(fullPath);
+            await OpenFileOrProjectAsync(fullPath);
         }
     }
 
     private void OnCustomShapesDocumentChanged()
     {
+        IsProjectModified = true;
+        (SaveProjectCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (SaveProjectAsCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (ExportMachineFileCommand as RelayCommand)?.RaiseCanExecuteChanged();
+
         if (CustomShapes.Shapes.Count > 0)
         {
-            LoadedToolpath = CustomShapes.CompileToolpath("CustomShapes.h");
+            LoadedToolpath = CustomShapes.CompileToolpath(string.IsNullOrEmpty(ProjectName) ? "CustomShapes.h" : $"{ProjectName}.h");
             CurrentFilePath = string.Empty;
             ToolpathLoaded?.Invoke(LoadedToolpath, false);
             StatusText = $"Custom toolpath: {CustomShapes.Shapes.Count} shapes, {LoadedToolpath.Segments.Count} segments ({LoadedToolpath.Statistics.TotalCutLength:F2} mm cut).";
@@ -603,7 +850,7 @@ public sealed class MainViewModel : ObservableObject
             LoadedToolpath = Toolpath.Empty;
             CurrentFilePath = string.Empty;
             ToolpathLoaded?.Invoke(LoadedToolpath, false);
-            StatusText = "Ready. Select a shape tool to draw or click 'Open Toolpath'.";
+            StatusText = "Ready. Select a shape tool to draw, or open a project / toolpath.";
         }
         RequestRender?.Invoke();
     }
@@ -626,23 +873,30 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    private void ExecuteExportToolpath()
+    public void ExecuteExportMachineFile()
     {
         var dialog = new SaveFileDialog
         {
-            Title = "Export Toolpath File",
-            Filter = "Toolpath Files (*.h)|*.h|Text Files (*.txt)|*.txt|All Files (*.*)|*.*",
-            FileName = string.IsNullOrEmpty(LoadedToolpath.Name) ? "CustomShapes.h" : LoadedToolpath.Name
+            Title = "Export Machine Toolpath File",
+            Filter = ToolpathProject.MachineFileFilter,
+            DefaultExt = ".h",
+            FileName = string.IsNullOrEmpty(ProjectName) || ProjectName == "Untitled" ? "CustomShapes.h" : $"{ProjectName}.h"
         };
 
         if (dialog.ShowDialog() == true)
         {
+            var settings = new ProjectProcessSettings
+            {
+                DefaultFeedrate = SimulationFeedrate,
+                Units = "mm"
+            };
+
             string hCode = CustomShapes.Shapes.Count > 0
-                ? CustomShapes.ExportToHCode(Path.GetFileName(dialog.FileName))
+                ? CustomShapes.ExportToHCode(Path.GetFileName(dialog.FileName), embedMetadata: true, settings)
                 : ExportToolpathToH(LoadedToolpath, Path.GetFileName(dialog.FileName));
 
             File.WriteAllText(dialog.FileName, hCode);
-            StatusText = $"Exported toolpath to {Path.GetFileName(dialog.FileName)}.";
+            StatusText = $"Exported machine toolpath to {Path.GetFileName(dialog.FileName)}.";
         }
     }
 

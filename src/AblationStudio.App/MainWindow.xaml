@@ -22,8 +22,11 @@
 
     <Window.InputBindings>
         <KeyBinding Key="N" Modifiers="Control" Command="{Binding NewFileCommand}" />
-        <KeyBinding Key="O" Modifiers="Control" Command="{Binding OpenFileCommand}" />
-        <KeyBinding Key="S" Modifiers="Control" Command="{Binding ExportToolpathCommand}" />
+        <KeyBinding Key="O" Modifiers="Control" Command="{Binding OpenProjectCommand}" />
+        <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveProjectCommand}" />
+        <KeyBinding Key="S" Modifiers="Control+Shift" Command="{Binding SaveProjectAsCommand}" />
+        <KeyBinding Key="E" Modifiers="Control" Command="{Binding ExportMachineFileCommand}" />
+        <KeyBinding Key="I" Modifiers="Control" Command="{Binding ImportMachineFileCommand}" />
         <KeyBinding Key="R" Modifiers="Control" Command="{Binding ReloadCommand}" />
         <KeyBinding Key="F5" Command="{Binding ReloadCommand}" />
         <KeyBinding Key="F" Modifiers="Control" Command="{Binding FitViewCommand}" />
@@ -63,21 +66,35 @@
             <Menu Background="Transparent">
                 <!-- File Operations Menu -->
                 <MenuItem Header="_File" Padding="8,4">
-                    <MenuItem Header="_New Toolpath"
+                    <MenuItem Header="_New Project"
                               InputGestureText="Ctrl+N"
                               Command="{Binding NewFileCommand}">
                         <MenuItem.Icon>
                             <ui:SymbolIcon Symbol="DocumentAdd24" />
                         </MenuItem.Icon>
                     </MenuItem>
-                    <MenuItem Header="_Open Toolpath..."
+                    <MenuItem Header="_Open Project..."
                               InputGestureText="Ctrl+O"
-                              Command="{Binding OpenFileCommand}">
+                              Command="{Binding OpenProjectCommand}">
                         <MenuItem.Icon>
                             <ui:SymbolIcon Symbol="FolderOpen24" />
                         </MenuItem.Icon>
                     </MenuItem>
-                    <MenuItem Header="_Reload File"
+                    <MenuItem Header="_Save Project"
+                              InputGestureText="Ctrl+S"
+                              Command="{Binding SaveProjectCommand}">
+                        <MenuItem.Icon>
+                            <ui:SymbolIcon Symbol="Save24" />
+                        </MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem Header="Save Project _As..."
+                              InputGestureText="Ctrl+Shift+S"
+                              Command="{Binding SaveProjectAsCommand}">
+                        <MenuItem.Icon>
+                            <ui:SymbolIcon Symbol="SaveCopy24" />
+                        </MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem Header="_Reload"
                               InputGestureText="Ctrl+R"
                               Command="{Binding ReloadCommand}">
                         <MenuItem.Icon>
@@ -85,11 +102,18 @@
                         </MenuItem.Icon>
                     </MenuItem>
                     <Separator />
-                    <MenuItem Header="_Save / Export Toolpath..."
-                              InputGestureText="Ctrl+S"
-                              Command="{Binding ExportToolpathCommand}">
+                    <MenuItem Header="_Export Machine File (.h)..."
+                              InputGestureText="Ctrl+E"
+                              Command="{Binding ExportMachineFileCommand}">
                         <MenuItem.Icon>
-                            <ui:SymbolIcon Symbol="Save24" />
+                            <ui:SymbolIcon Symbol="ArrowExportUp24" />
+                        </MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem Header="_Import Machine File (.h, .txt)..."
+                              InputGestureText="Ctrl+I"
+                              Command="{Binding ImportMachineFileCommand}">
+                        <MenuItem.Icon>
+                            <ui:SymbolIcon Symbol="ArrowImport24" />
                         </MenuItem.Icon>
                     </MenuItem>
                     <Separator />
@@ -269,7 +293,7 @@
                 <!-- New File Button -->
                 <ui:Button Appearance="Secondary"
                            Command="{Binding NewFileCommand}"
-                           ToolTip="New Canvas / Toolpath [Ctrl+N]"
+                           ToolTip="New Project Canvas [Ctrl+N]"
                            Margin="0,0,6,0">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="DocumentAdd24" Margin="0,0,6,0" />
@@ -277,10 +301,10 @@
                     </StackPanel>
                 </ui:Button>
 
-                <!-- Primary Action: Open File Button -->
+                <!-- Primary Action: Open Project / File Button -->
                 <ui:Button Appearance="Primary"
-                           Command="{Binding OpenFileCommand}"
-                           ToolTip="Open toolpath file (*.h, *.txt) [Ctrl+O]"
+                           Command="{Binding OpenProjectCommand}"
+                           ToolTip="Open Project or Machine File (*.abproj, *.json, *.h) [Ctrl+O]"
                            Margin="0,0,6,0">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="FolderOpen24" Margin="0,0,6,0" />
@@ -288,21 +312,43 @@
                     </StackPanel>
                 </ui:Button>
 
-                <!-- Save / Export Toolpath Button -->
+                <!-- Save Project Button -->
                 <ui:Button Appearance="Secondary"
-                           Command="{Binding ExportToolpathCommand}"
-                           ToolTip="Save / Export Toolpath to .h [Ctrl+S]"
+                           Command="{Binding SaveProjectCommand}"
+                           ToolTip="Save Project (*.abproj) [Ctrl+S]"
                            Margin="0,0,6,0">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="Save24" Margin="0,0,6,0" />
-                        <TextBlock Text="Export" />
+                        <TextBlock Text="Save" />
+                    </StackPanel>
+                </ui:Button>
+
+                <!-- Export Machine File Button -->
+                <ui:Button Appearance="Secondary"
+                           Command="{Binding ExportMachineFileCommand}"
+                           ToolTip="Export Machine File (*.h) [Ctrl+E]"
+                           Margin="0,0,6,0">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="ArrowExportUp24" Margin="0,0,6,0" />
+                        <TextBlock Text="Export (.h)" />
+                    </StackPanel>
+                </ui:Button>
+
+                <!-- Import Machine File Button -->
+                <ui:Button Appearance="Secondary"
+                           Command="{Binding ImportMachineFileCommand}"
+                           ToolTip="Import Machine File (*.h, *.txt) [Ctrl+I]"
+                           Margin="0,0,6,0">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="ArrowImport24" Margin="0,0,6,0" />
+                        <TextBlock Text="Import" />
                     </StackPanel>
                 </ui:Button>
 
                 <!-- Reload Button -->
                 <ui:Button Appearance="Secondary"
                            Command="{Binding ReloadCommand}"
-                           ToolTip="Reload current file [Ctrl+R / F5]"
+                           ToolTip="Reload current project or file [Ctrl+R / F5]"
                            Margin="0,0,12,0">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="ArrowSync24" Margin="0,0,6,0" />
