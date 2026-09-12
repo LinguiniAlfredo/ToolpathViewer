@@ -692,9 +692,10 @@ public sealed class MainViewModel : ObservableObject
         var dialog = new OpenFileDialog
         {
             Title = "Open Project or Machine File",
-            Filter = "All Supported Files (*.abproj;*.json;*.h;*.txt)|*.abproj;*.json;*.h;*.txt|" +
+            Filter = "All Supported Files (*.abproj;*.json;*.h;*.txt;*.cls)|*.abproj;*.json;*.h;*.txt;*.cls|" +
                      "Ablation Studio Project (*.abproj;*.json)|*.abproj;*.json|" +
                      "Laser Toolpath (*.h;*.txt)|*.h;*.txt|" +
+                     "Cutter Location Toolpath (*.cls)|*.cls|" +
                      "All Files (*.*)|*.*",
             InitialDirectory = @"c:\Users\m_del\Source\vibe_test\example_toolpaths"
         };

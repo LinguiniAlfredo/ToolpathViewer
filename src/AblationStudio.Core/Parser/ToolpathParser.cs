@@ -14,6 +14,24 @@ public sealed class ToolpathParser
             throw new FileNotFoundException($"Toolpath file not found: {filePath}", filePath);
         }
 
+        string ext = Path.GetExtension(filePath);
+        if (ext.Equals(".cls", StringComparison.OrdinalIgnoreCase))
+        {
+            return await ClsToolpathParser.ParseFileAsync(filePath, cancellationToken);
+        }
+
+        // For other files (.txt, etc.), check if it contains CLSF content
+        using (var previewReader = new StreamReader(filePath))
+        {
+            char[] buffer = new char[1024];
+            int read = await previewReader.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
+            string preview = new string(buffer, 0, read);
+            if (ClsToolpathParser.IsClsContent(preview))
+            {
+                return await ClsToolpathParser.ParseFileAsync(filePath, cancellationToken);
+            }
+        }
+
         using var streamReader = new StreamReader(filePath);
         var segments = await ParseInternalAsync(streamReader, cancellationToken);
         string name = Path.GetFileName(filePath);
@@ -23,6 +41,11 @@ public sealed class ToolpathParser
 
     public static Toolpath ParseText(string content, string name = "unnamed")
     {
+        if (ClsToolpathParser.IsClsContent(content))
+        {
+            return ClsToolpathParser.ParseText(content, name);
+        }
+
         using var stringReader = new StringReader(content);
         var segments = ParseInternal(stringReader);
         return new Toolpath(name, string.Empty, segments);
