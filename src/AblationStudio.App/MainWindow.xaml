@@ -1229,14 +1229,14 @@
                                                     Value="{Binding SelectedShape.Hatch.Stepover, Mode=TwoWay}"
                                                     Margin="0,2,0,8" />
 
-                                            <!-- Angle (Degrees) - Hidden for Follow Profile -->
+                                            <!-- Angle (Degrees) - Visible only for ZigZag (Hidden for Spiral and Follow Profile) -->
                                             <StackPanel>
                                                 <StackPanel.Style>
                                                     <Style TargetType="StackPanel">
-                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Setter Property="Visibility" Value="Collapsed" />
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding SelectedShape.Hatch.Pattern}" Value="{x:Static shapes:HatchPatternType.FollowProfile}">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            <DataTrigger Binding="{Binding SelectedShape.Hatch.Pattern}" Value="{x:Static shapes:HatchPatternType.ZigZag}">
+                                                                <Setter Property="Visibility" Value="Visible" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
