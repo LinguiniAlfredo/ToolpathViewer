@@ -1254,14 +1254,54 @@
                                                         Margin="0,2,0,8" />
                                             </StackPanel>
 
-                                            <!-- ZigZag Specific Settings -->
+                                            <!-- Spiral Specific Settings -->
                                             <StackPanel>
                                                 <StackPanel.Style>
                                                     <Style TargetType="StackPanel">
                                                         <Setter Property="Visibility" Value="Collapsed" />
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding SelectedShape.Hatch.Pattern}" Value="{x:Static shapes:HatchPatternType.ZigZag}">
+                                                            <DataTrigger Binding="{Binding SelectedShape.Hatch.Pattern}" Value="{x:Static shapes:HatchPatternType.Spiral}">
                                                                 <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </StackPanel.Style>
+
+                                                <CheckBox IsChecked="{Binding SelectedShape.Hatch.SpiralInward, Mode=TwoWay}"
+                                                          Content="Reverse Direction (Spiral Inward)"
+                                                          ToolTip="Spirals inward toward the center instead of outward from the center"
+                                                          FontSize="11"
+                                                          Margin="0,2,0,4" />
+                                            </StackPanel>
+
+                                            <!-- Follow Profile Specific Settings -->
+                                            <StackPanel>
+                                                <StackPanel.Style>
+                                                    <Style TargetType="StackPanel">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding SelectedShape.Hatch.Pattern}" Value="{x:Static shapes:HatchPatternType.FollowProfile}">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </StackPanel.Style>
+
+                                                <CheckBox IsChecked="{Binding SelectedShape.Hatch.FollowProfileOutward, Mode=TwoWay}"
+                                                          Content="Reverse Direction (Fill Outward)"
+                                                          ToolTip="Fills outward from the center toward the perimeter instead of inward from the perimeter"
+                                                          FontSize="11"
+                                                          Margin="0,2,0,4" />
+                                            </StackPanel>
+
+                                            <!-- Line Skip (Thermal Dispersion) Settings - For ZigZag and Follow Profile -->
+                                            <StackPanel>
+                                                <StackPanel.Style>
+                                                    <Style TargetType="StackPanel">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding SelectedShape.Hatch.Pattern}" Value="{x:Static shapes:HatchPatternType.Spiral}">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
@@ -1306,6 +1346,20 @@
                                                           Content="Auto Maximize Line Distance"
                                                           FontSize="11"
                                                           Margin="0,0,0,6" />
+                                            </StackPanel>
+
+                                            <!-- ZigZag Specific Settings -->
+                                            <StackPanel>
+                                                <StackPanel.Style>
+                                                    <Style TargetType="StackPanel">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding SelectedShape.Hatch.Pattern}" Value="{x:Static shapes:HatchPatternType.ZigZag}">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </StackPanel.Style>
 
                                                 <CheckBox IsChecked="{Binding SelectedShape.Hatch.CrossHatch, Mode=TwoWay}"
                                                           Content="Cross-Hatch (90° Dual Pass)"

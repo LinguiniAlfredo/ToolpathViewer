@@ -42,6 +42,7 @@ public sealed class ProjectSerializationTests
         rect.Hatch.Pattern = HatchPatternType.Spiral;
         rect.Hatch.Stepover = 0.5f;
         rect.Hatch.KeepBoundary = false;
+        rect.Hatch.SpiralInward = true;
         doc.AddShape(rect);
 
         // 3. Polygon with FollowProfile Hatch
@@ -54,6 +55,8 @@ public sealed class ProjectSerializationTests
         poly.Hatch.IsEnabled = true;
         poly.Hatch.Pattern = HatchPatternType.FollowProfile;
         poly.Hatch.Stepover = 0.4f;
+        poly.Hatch.FollowProfileOutward = true;
+        poly.Hatch.LineSkip = 2;
         doc.AddShape(poly);
 
         // 4. Line
@@ -121,6 +124,7 @@ public sealed class ProjectSerializationTests
         Assert.True(restoredRect.Hatch.IsEnabled);
         Assert.Equal(HatchPatternType.Spiral, restoredRect.Hatch.Pattern);
         Assert.False(restoredRect.Hatch.KeepBoundary);
+        Assert.True(restoredRect.Hatch.SpiralInward);
 
         // Verify Polygon
         var restoredPoly = Assert.IsType<PolygonShape>(restoredDoc.Shapes[2]);
@@ -132,6 +136,8 @@ public sealed class ProjectSerializationTests
         Assert.Equal(30f, restoredPoly.RotationDegrees, precision: 3);
         Assert.True(restoredPoly.Hatch.IsEnabled);
         Assert.Equal(HatchPatternType.FollowProfile, restoredPoly.Hatch.Pattern);
+        Assert.True(restoredPoly.Hatch.FollowProfileOutward);
+        Assert.Equal(2, restoredPoly.Hatch.LineSkip);
 
         // Verify Line
         var restoredLine = Assert.IsType<LineShape>(restoredDoc.Shapes[3]);

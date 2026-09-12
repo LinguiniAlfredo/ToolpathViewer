@@ -13,6 +13,8 @@ public sealed class HatchSettings : INotifyPropertyChanged
     private bool _keepBoundary = true;
     private int _lineSkip = 1;
     private bool _autoLineSkip;
+    private bool _spiralInward;
+    private bool _followProfileOutward;
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public event Action? SettingsChanged;
@@ -116,6 +118,30 @@ public sealed class HatchSettings : INotifyPropertyChanged
         }
     }
 
+    public bool SpiralInward
+    {
+        get => _spiralInward;
+        set
+        {
+            if (SetProperty(ref _spiralInward, value))
+            {
+                OnSettingsModified();
+            }
+        }
+    }
+
+    public bool FollowProfileOutward
+    {
+        get => _followProfileOutward;
+        set
+        {
+            if (SetProperty(ref _followProfileOutward, value))
+            {
+                OnSettingsModified();
+            }
+        }
+    }
+
     public HatchSettings Clone() => new()
     {
         _isEnabled = _isEnabled,
@@ -125,7 +151,9 @@ public sealed class HatchSettings : INotifyPropertyChanged
         _crossHatch = _crossHatch,
         _keepBoundary = _keepBoundary,
         _lineSkip = _lineSkip,
-        _autoLineSkip = _autoLineSkip
+        _autoLineSkip = _autoLineSkip,
+        _spiralInward = _spiralInward,
+        _followProfileOutward = _followProfileOutward
     };
 
     public void CopyFrom(HatchSettings other)
@@ -139,6 +167,8 @@ public sealed class HatchSettings : INotifyPropertyChanged
         _keepBoundary = other.KeepBoundary;
         _lineSkip = other.LineSkip;
         _autoLineSkip = other.AutoLineSkip;
+        _spiralInward = other.SpiralInward;
+        _followProfileOutward = other.FollowProfileOutward;
 
         OnPropertyChanged(nameof(IsEnabled));
         OnPropertyChanged(nameof(Pattern));
@@ -148,6 +178,8 @@ public sealed class HatchSettings : INotifyPropertyChanged
         OnPropertyChanged(nameof(KeepBoundary));
         OnPropertyChanged(nameof(LineSkip));
         OnPropertyChanged(nameof(AutoLineSkip));
+        OnPropertyChanged(nameof(SpiralInward));
+        OnPropertyChanged(nameof(FollowProfileOutward));
         OnSettingsModified();
     }
 

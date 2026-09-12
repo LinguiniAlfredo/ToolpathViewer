@@ -153,6 +153,75 @@ public sealed class HatchingTests
     }
 
     [Fact]
+    public void SpiralHatch_OnCircle_InwardDirection_StartsAtPerimeterAndEndsAtCenter()
+    {
+        const float radius = 10.0f;
+        const float stepover = 1.0f;
+        var circle = new CircleShape(20f, 30f, 5f, radius);
+        circle.Hatch.IsEnabled = true;
+        circle.Hatch.Pattern = HatchPatternType.Spiral;
+        circle.Hatch.Stepover = stepover;
+        circle.Hatch.KeepBoundary = true;
+        circle.Hatch.SpiralInward = true;
+
+        List<ToolpathSegment> segments = circle.GenerateSegments().ToList();
+        List<ToolpathSegment> hatchSegments = segments.Where(s => s.Type == SegmentType.Hatch).ToList();
+
+        Assert.NotEmpty(hatchSegments);
+
+        // First hatch point must be near the outer boundary
+        ToolpathPoint firstPt = hatchSegments[0].Start;
+        float startR = MathF.Sqrt(MathF.Pow(firstPt.X - 20f, 2) + MathF.Pow(firstPt.Y - 30f, 2));
+        Assert.InRange(startR, radius * 0.95f, radius * 1.01f);
+
+        // Radii must decrease inward monotonically
+        float prevR = startR;
+        foreach (ToolpathSegment seg in hatchSegments)
+        {
+            float r = MathF.Sqrt(MathF.Pow(seg.End.X - 20f, 2) + MathF.Pow(seg.End.Y - 30f, 2));
+            Assert.True(r <= prevR + 1e-4f, $"Radius not decreasing monotonically: prev={prevR}, curr={r}");
+            prevR = r;
+        }
+
+        // Final hatch point must be at center (20, 30, 5)
+        ToolpathPoint lastPt = hatchSegments[^1].End;
+        Assert.Equal(20f, lastPt.X, precision: 3);
+        Assert.Equal(30f, lastPt.Y, precision: 3);
+        Assert.Equal(5f, lastPt.Z, precision: 3);
+    }
+
+    [Fact]
+    public void SpiralHatch_OnRectangle_InwardDirection_EndsAtCenter()
+    {
+        var rect = new RectangleShape(0f, 0f, 0f, width: 20f, height: 10f);
+        rect.Hatch.IsEnabled = true;
+        rect.Hatch.Pattern = HatchPatternType.Spiral;
+        rect.Hatch.Stepover = 1.0f;
+        rect.Hatch.KeepBoundary = false;
+        rect.Hatch.SpiralInward = true;
+
+        List<ToolpathSegment> segments = rect.GenerateSegments().ToList();
+        List<ToolpathSegment> hatchSegments = segments.Where(s => s.Type == SegmentType.Hatch).ToList();
+
+        Assert.NotEmpty(hatchSegments);
+
+        // Verify all hatch points stay within rectangle boundary [-10, 10] x [-5, 5]
+        foreach (ToolpathSegment seg in hatchSegments)
+        {
+            Assert.InRange(seg.Start.X, -10.05f, 10.05f);
+            Assert.InRange(seg.Start.Y, -5.05f, 5.05f);
+            Assert.InRange(seg.End.X, -10.05f, 10.05f);
+            Assert.InRange(seg.End.Y, -5.05f, 5.05f);
+        }
+
+        // Last hatch segment must end at center (0, 0, 0)
+        ToolpathPoint lastPt = hatchSegments[^1].End;
+        Assert.Equal(0f, lastPt.X, precision: 3);
+        Assert.Equal(0f, lastPt.Y, precision: 3);
+        Assert.Equal(0f, lastPt.Z, precision: 3);
+    }
+
+    [Fact]
     public void FollowProfile_OnCircle_GeneratesConcentricInwardRings()
     {
         const float radius = 10.0f;
@@ -181,6 +250,101 @@ public sealed class HatchingTests
                 Assert.Equal(expectedR, r, precision: 2);
             }
         }
+    }
+
+    [Fact]
+    public void FollowProfile_OnCircle_OutwardDirection_GeneratesConcentricOutwardRings()
+    {
+        const float radius = 10.0f;
+        const float stepover = 2.0f;
+        var circle = new CircleShape(0f, 0f, 0f, radius, segments: 32);
+        circle.Hatch.IsEnabled = true;
+        circle.Hatch.Pattern = HatchPatternType.FollowProfile;
+        circle.Hatch.Stepover = stepover;
+        circle.Hatch.KeepBoundary = true;
+        circle.Hatch.FollowProfileOutward = true;
+
+        List<ToolpathSegment> segments = circle.GenerateSegments().ToList();
+        List<ToolpathSegment> hatchSegments = segments.Where(s => s.Type == SegmentType.Hatch).ToList();
+
+        // Outward rings at r = 2, 4, 6, 8 (4 rings * 32 segments = 128 segments)
+        Assert.Equal(4 * 32, hatchSegments.Count);
+
+        // Verify rings increase in radius
+        for (int ring = 0; ring < 4; ring++)
+        {
+            float expectedR = 2.0f + ring * stepover;
+            int startIndex = ring * 32;
+            for (int i = 0; i < 32; i++)
+            {
+                ToolpathSegment seg = hatchSegments[startIndex + i];
+                float r = MathF.Sqrt(seg.Start.X * seg.Start.X + seg.Start.Y * seg.Start.Y);
+                Assert.Equal(expectedR, r, precision: 2);
+            }
+        }
+    }
+
+    [Fact]
+    public void FollowProfile_OnCircle_WithLineSkip_InterleavesRings()
+    {
+        const float radius = 10.0f;
+        const float stepover = 2.0f;
+        var circle = new CircleShape(0f, 0f, 0f, radius, segments: 32);
+        circle.Hatch.IsEnabled = true;
+        circle.Hatch.Pattern = HatchPatternType.FollowProfile;
+        circle.Hatch.Stepover = stepover;
+        circle.Hatch.KeepBoundary = false;
+        circle.Hatch.LineSkip = 2; // Inward order: ring 0 (r=8), ring 2 (r=4), ring 1 (r=6), ring 3 (r=2)
+
+        List<ToolpathSegment> segments = circle.GenerateSegments().ToList();
+        List<ToolpathSegment> hatchSegments = segments.Where(s => s.Type == SegmentType.Hatch).ToList();
+
+        Assert.Equal(4 * 32, hatchSegments.Count);
+
+        float[] expectedRadii = [8.0f, 4.0f, 6.0f, 2.0f];
+        for (int ring = 0; ring < 4; ring++)
+        {
+            float expectedR = expectedRadii[ring];
+            int startIndex = ring * 32;
+            for (int i = 0; i < 32; i++)
+            {
+                ToolpathSegment seg = hatchSegments[startIndex + i];
+                float r = MathF.Sqrt(seg.Start.X * seg.Start.X + seg.Start.Y * seg.Start.Y);
+                Assert.Equal(expectedR, r, precision: 2);
+            }
+        }
+    }
+
+    [Fact]
+    public void FollowProfile_OnCircle_WithAutoLineSkip()
+    {
+        const float radius = 10.0f;
+        const float stepover = 2.0f;
+        var circle = new CircleShape(0f, 0f, 0f, radius, segments: 32);
+        circle.Hatch.IsEnabled = true;
+        circle.Hatch.Pattern = HatchPatternType.FollowProfile;
+        circle.Hatch.Stepover = stepover;
+        circle.Hatch.KeepBoundary = false;
+        circle.Hatch.AutoLineSkip = true;
+
+        List<ToolpathSegment> segments = circle.GenerateSegments().ToList();
+        List<ToolpathSegment> hatchSegments = segments.Where(s => s.Type == SegmentType.Hatch).ToList();
+
+        Assert.Equal(4 * 32, hatchSegments.Count);
+
+        // Verify all 4 expected ring radii are visited
+        var visitedRadii = new HashSet<int>();
+        for (int ring = 0; ring < 4; ring++)
+        {
+            ToolpathSegment seg = hatchSegments[ring * 32];
+            float r = MathF.Sqrt(seg.Start.X * seg.Start.X + seg.Start.Y * seg.Start.Y);
+            visitedRadii.Add((int)MathF.Round(r));
+        }
+
+        Assert.Contains(2, visitedRadii);
+        Assert.Contains(4, visitedRadii);
+        Assert.Contains(6, visitedRadii);
+        Assert.Contains(8, visitedRadii);
     }
 
     [Fact]

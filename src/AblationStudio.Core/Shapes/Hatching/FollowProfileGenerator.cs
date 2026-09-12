@@ -14,37 +14,40 @@ public static class FollowProfileGenerator
         int layerId = shape.LayerId;
         float z = shape.PositionZ;
 
-        if (shape is CircleShape circle)
+        var rings = shape switch
         {
-            GenerateCircleOffsets(segments, circle, stepover, z, layerId, ref currentPosition);
+            CircleShape circle => GetCircleRings(circle, stepover, z),
+            RectangleShape rect => GetRectangleRings(rect, stepover, z),
+            PolygonShape poly => GetPolygonRings(poly, stepover, z),
+            _ => GetGenericRings(shape, stepover, z)
+        };
+
+        if (rings.Count == 0)
+        {
             return segments;
         }
 
-        if (shape is RectangleShape rect)
+        if (settings.FollowProfileOutward)
         {
-            GenerateRectangleOffsets(segments, rect, stepover, z, layerId, ref currentPosition);
-            return segments;
+            rings.Reverse();
         }
 
-        if (shape is PolygonShape poly)
+        List<int> sequence = ZigZagHatchGenerator.GetLineSequence(rings.Count, settings.LineSkip, settings.AutoLineSkip);
+
+        foreach (int idx in sequence)
         {
-            GeneratePolygonOffsets(segments, poly, stepover, z, layerId, ref currentPosition);
-            return segments;
+            EmitClosedLoop(segments, rings[idx], layerId, ref currentPosition);
         }
 
-        // Fallback for any other closed shape
-        GenerateGenericOffsets(segments, shape, stepover, z, layerId, ref currentPosition);
         return segments;
     }
 
-    private static void GenerateCircleOffsets(
-        List<ToolpathSegment> segments,
+    private static List<IReadOnlyList<ToolpathPoint>> GetCircleRings(
         CircleShape circle,
         float stepover,
-        float z,
-        int layerId,
-        ref ToolpathPoint? currentPosition)
+        float z)
     {
+        var rings = new List<IReadOnlyList<ToolpathPoint>>();
         float outerR = circle.Radius;
         int count = circle.SegmentsCount;
         float stepTheta = (2.0f * MathF.PI) / count;
@@ -60,18 +63,18 @@ public static class FollowProfileGenerator
                 ringPoints[i] = new ToolpathPoint(cx + r * MathF.Cos(theta), cy + r * MathF.Sin(theta), z);
             }
 
-            EmitClosedLoop(segments, ringPoints, layerId, ref currentPosition);
+            rings.Add(ringPoints);
         }
+
+        return rings;
     }
 
-    private static void GenerateRectangleOffsets(
-        List<ToolpathSegment> segments,
+    private static List<IReadOnlyList<ToolpathPoint>> GetRectangleRings(
         RectangleShape rect,
         float stepover,
-        float z,
-        int layerId,
-        ref ToolpathPoint? currentPosition)
+        float z)
     {
+        var rings = new List<IReadOnlyList<ToolpathPoint>>();
         float w = rect.Width;
         float h = rect.Height;
         float cx = rect.PositionX;
@@ -109,18 +112,18 @@ public static class FollowProfileGenerator
                 ringPoints[i] = new ToolpathPoint(gx, gy, z);
             }
 
-            EmitClosedLoop(segments, ringPoints, layerId, ref currentPosition);
+            rings.Add(ringPoints);
         }
+
+        return rings;
     }
 
-    private static void GeneratePolygonOffsets(
-        List<ToolpathSegment> segments,
+    private static List<IReadOnlyList<ToolpathPoint>> GetPolygonRings(
         PolygonShape poly,
         float stepover,
-        float z,
-        int layerId,
-        ref ToolpathPoint? currentPosition)
+        float z)
     {
+        var rings = new List<IReadOnlyList<ToolpathPoint>>();
         int sides = poly.Sides;
         float outerR = poly.Radius;
         float cx = poly.PositionX;
@@ -141,22 +144,22 @@ public static class FollowProfileGenerator
                 ringPoints[i] = new ToolpathPoint(cx + r * MathF.Cos(theta), cy + r * MathF.Sin(theta), z);
             }
 
-            EmitClosedLoop(segments, ringPoints, layerId, ref currentPosition);
+            rings.Add(ringPoints);
         }
+
+        return rings;
     }
 
-    private static void GenerateGenericOffsets(
-        List<ToolpathSegment> segments,
+    private static List<IReadOnlyList<ToolpathPoint>> GetGenericRings(
         ToolpathShape shape,
         float stepover,
-        float z,
-        int layerId,
-        ref ToolpathPoint? currentPosition)
+        float z)
     {
+        var rings = new List<IReadOnlyList<ToolpathPoint>>();
         IReadOnlyList<ToolpathPoint> pts = shape.GetPathPoints();
         if (pts.Count < 3)
         {
-            return;
+            return rings;
         }
 
         float cx = shape.PositionX;
@@ -185,8 +188,10 @@ public static class FollowProfileGenerator
                 ringPoints[i] = new ToolpathPoint(x, y, z);
             }
 
-            EmitClosedLoop(segments, ringPoints, layerId, ref currentPosition);
+            rings.Add(ringPoints);
         }
+
+        return rings;
     }
 
     private static void EmitClosedLoop(

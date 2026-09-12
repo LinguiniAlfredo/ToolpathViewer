@@ -143,6 +143,8 @@ public sealed class HatchSettingsDto
     public bool KeepBoundary { get; set; } = true;
     public int LineSkip { get; set; } = 1;
     public bool AutoLineSkip { get; set; }
+    public bool SpiralInward { get; set; }
+    public bool FollowProfileOutward { get; set; }
 
     public static HatchSettingsDto FromSettings(HatchSettings settings)
     {
@@ -157,7 +159,9 @@ public sealed class HatchSettingsDto
             CrossHatch = settings.CrossHatch,
             KeepBoundary = settings.KeepBoundary,
             LineSkip = settings.LineSkip,
-            AutoLineSkip = settings.AutoLineSkip
+            AutoLineSkip = settings.AutoLineSkip,
+            SpiralInward = settings.SpiralInward,
+            FollowProfileOutward = settings.FollowProfileOutward
         };
     }
 
@@ -173,5 +177,7 @@ public sealed class HatchSettingsDto
         target.KeepBoundary = KeepBoundary;
         target.LineSkip = LineSkip;
         target.AutoLineSkip = AutoLineSkip;
+        target.SpiralInward = SpiralInward;
+        target.FollowProfileOutward = FollowProfileOutward;
     }
 }

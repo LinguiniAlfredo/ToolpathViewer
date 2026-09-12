@@ -22,7 +22,7 @@ public static class SpiralHatchGenerator
         // Specialized fast path for CircleShape
         if (shape is CircleShape circle)
         {
-            GenerateCircleSpiral(segments, circle, stepover, startAngleRad, ref currentPosition);
+            GenerateCircleSpiral(segments, circle, stepover, startAngleRad, settings.SpiralInward, ref currentPosition);
             return segments;
         }
 
@@ -46,8 +46,15 @@ public static class SpiralHatchGenerator
         float dTheta = (2.0f * MathF.PI) / SamplesPerRevolution;
         float b = stepover / (2.0f * MathF.PI);
 
+        var strokes = new List<List<ToolpathPoint>>();
+        List<ToolpathPoint>? currentStroke = null;
+
         HatchGeometry.Point2D prevPt = center2D;
         bool prevInside = HatchGeometry.IsPointInPolygon(prevPt, poly);
+        if (prevInside)
+        {
+            currentStroke = [new ToolpathPoint(prevPt.X, prevPt.Y, z)];
+        }
 
         for (int step = 1; step <= totalSteps; step++)
         {
@@ -64,64 +71,76 @@ public static class SpiralHatchGenerator
 
             if (prevInside && currInside)
             {
-                // Both points inside: cut move
-                var pStart = new ToolpathPoint(prevPt.X, prevPt.Y, z);
-                var pEnd = new ToolpathPoint(currPt.X, currPt.Y, z);
-
-                if (currentPosition is null || currentPosition.Value.DistanceTo(pStart) > 0.001f)
-                {
-                    if (currentPosition is not null)
-                    {
-                        segments.Add(new ToolpathSegment(currentPosition.Value, pStart, SegmentType.Rapid, layerId));
-                    }
-                }
-
-                segments.Add(new ToolpathSegment(pStart, pEnd, SegmentType.Hatch, layerId));
-                currentPosition = pEnd;
+                currentStroke ??= [new ToolpathPoint(prevPt.X, prevPt.Y, z)];
+                currentStroke.Add(new ToolpathPoint(currPt.X, currPt.Y, z));
             }
             else if (prevInside && !currInside)
             {
                 // Crossing from inside to outside: clip at boundary exit
                 if (TryFindBoundaryIntersection(poly, prevPt, currPt, out HatchGeometry.Point2D exitPt))
                 {
-                    var pStart = new ToolpathPoint(prevPt.X, prevPt.Y, z);
-                    var pExit = new ToolpathPoint(exitPt.X, exitPt.Y, z);
-
-                    if (currentPosition is null || currentPosition.Value.DistanceTo(pStart) > 0.001f)
-                    {
-                        if (currentPosition is not null)
-                        {
-                            segments.Add(new ToolpathSegment(currentPosition.Value, pStart, SegmentType.Rapid, layerId));
-                        }
-                    }
-
-                    segments.Add(new ToolpathSegment(pStart, pExit, SegmentType.Hatch, layerId));
-                    currentPosition = pExit;
+                    currentStroke ??= [new ToolpathPoint(prevPt.X, prevPt.Y, z)];
+                    currentStroke.Add(new ToolpathPoint(exitPt.X, exitPt.Y, z));
                 }
+
+                if (currentStroke is { Count: >= 2 })
+                {
+                    strokes.Add(currentStroke);
+                }
+                currentStroke = null;
             }
             else if (!prevInside && currInside)
             {
                 // Crossing from outside to inside: clip at boundary entry
                 if (TryFindBoundaryIntersection(poly, prevPt, currPt, out HatchGeometry.Point2D entryPt))
                 {
-                    var pEntry = new ToolpathPoint(entryPt.X, entryPt.Y, z);
-                    var pEnd = new ToolpathPoint(currPt.X, currPt.Y, z);
-
-                    if (currentPosition is null || currentPosition.Value.DistanceTo(pEntry) > 0.001f)
-                    {
-                        if (currentPosition is not null)
-                        {
-                            segments.Add(new ToolpathSegment(currentPosition.Value, pEntry, SegmentType.Rapid, layerId));
-                        }
-                    }
-
-                    segments.Add(new ToolpathSegment(pEntry, pEnd, SegmentType.Hatch, layerId));
-                    currentPosition = pEnd;
+                    currentStroke = [new ToolpathPoint(entryPt.X, entryPt.Y, z), new ToolpathPoint(currPt.X, currPt.Y, z)];
+                }
+                else
+                {
+                    currentStroke = [new ToolpathPoint(currPt.X, currPt.Y, z)];
                 }
             }
 
             prevPt = currPt;
             prevInside = currInside;
+        }
+
+        if (currentStroke is { Count: >= 2 })
+        {
+            strokes.Add(currentStroke);
+        }
+
+        if (settings.SpiralInward)
+        {
+            strokes.Reverse();
+            foreach (List<ToolpathPoint> stroke in strokes)
+            {
+                stroke.Reverse();
+            }
+        }
+
+        foreach (List<ToolpathPoint> stroke in strokes)
+        {
+            if (stroke.Count < 2)
+            {
+                continue;
+            }
+
+            if (currentPosition is null || currentPosition.Value.DistanceTo(stroke[0]) > 0.001f)
+            {
+                if (currentPosition is not null)
+                {
+                    segments.Add(new ToolpathSegment(currentPosition.Value, stroke[0], SegmentType.Rapid, layerId));
+                }
+            }
+            currentPosition = stroke[0];
+
+            for (int i = 0; i < stroke.Count - 1; i++)
+            {
+                segments.Add(new ToolpathSegment(stroke[i], stroke[i + 1], SegmentType.Hatch, layerId));
+            }
+            currentPosition = stroke[^1];
         }
 
         return segments;
@@ -132,6 +151,7 @@ public static class SpiralHatchGenerator
         CircleShape circle,
         float stepover,
         float startAngleRad,
+        bool inward,
         ref ToolpathPoint? currentPosition)
     {
         float rMax = circle.Radius;
@@ -151,16 +171,7 @@ public static class SpiralHatchGenerator
         float b = stepover / (2.0f * MathF.PI);
 
         var center = new ToolpathPoint(cx, cy, cz);
-        if (currentPosition is null || currentPosition.Value.DistanceTo(center) > 0.001f)
-        {
-            if (currentPosition is not null)
-            {
-                segments.Add(new ToolpathSegment(currentPosition.Value, center, SegmentType.Rapid, layerId));
-            }
-        }
-        currentPosition = center;
-
-        ToolpathPoint prevPt = center;
+        var points = new List<ToolpathPoint>(totalSteps + 1) { center };
 
         for (int step = 1; step <= totalSteps; step++)
         {
@@ -170,17 +181,38 @@ public static class SpiralHatchGenerator
 
             float x = cx + r * MathF.Cos(angle);
             float y = cy + r * MathF.Sin(angle);
-            var nextPt = new ToolpathPoint(x, y, cz);
-
-            segments.Add(new ToolpathSegment(prevPt, nextPt, SegmentType.Hatch, layerId));
-            prevPt = nextPt;
-            currentPosition = nextPt;
+            points.Add(new ToolpathPoint(x, y, cz));
 
             if (r >= rMax - 1e-4f)
             {
                 break;
             }
         }
+
+        if (inward)
+        {
+            points.Reverse();
+        }
+
+        if (points.Count < 2)
+        {
+            return;
+        }
+
+        if (currentPosition is null || currentPosition.Value.DistanceTo(points[0]) > 0.001f)
+        {
+            if (currentPosition is not null)
+            {
+                segments.Add(new ToolpathSegment(currentPosition.Value, points[0], SegmentType.Rapid, layerId));
+            }
+        }
+        currentPosition = points[0];
+
+        for (int i = 0; i < points.Count - 1; i++)
+        {
+            segments.Add(new ToolpathSegment(points[i], points[i + 1], SegmentType.Hatch, layerId));
+        }
+        currentPosition = points[^1];
     }
 
     private static bool TryFindBoundaryIntersection(
