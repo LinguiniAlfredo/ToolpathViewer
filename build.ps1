@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    Build and packaging script for ToolpathViewer.
+    Build and packaging script for Ablation Studio.
 
 .DESCRIPTION
-    Compiles, tests, and publishes ToolpathViewer into a self-contained,
+    Compiles, tests, and publishes Ablation Studio into a self-contained,
     single-file standalone executable for Windows.
 
 .PARAMETER Target
@@ -45,7 +45,7 @@
     Runs all unit tests.
 
 .EXAMPLE
-    .\build.ps1 -Target Publish -OutputDir "C:\Tools\ToolpathViewer" -SkipTests
+    .\build.ps1 -Target Publish -OutputDir "C:\Tools\AblationStudio" -SkipTests
     Publishes directly to a custom destination without running tests.
 #>
 
@@ -129,14 +129,14 @@ function Invoke-Clean {
     
     $cleanPaths = @(
         $OutputDir,
-        (Join-Path $ScriptRoot "src/ToolpathViewer.App/bin"),
-        (Join-Path $ScriptRoot "src/ToolpathViewer.App/obj"),
-        (Join-Path $ScriptRoot "src/ToolpathViewer.Core/bin"),
-        (Join-Path $ScriptRoot "src/ToolpathViewer.Core/obj"),
-        (Join-Path $ScriptRoot "src/ToolpathViewer.Rendering/bin"),
-        (Join-Path $ScriptRoot "src/ToolpathViewer.Rendering/obj"),
-        (Join-Path $ScriptRoot "tests/ToolpathViewer.Tests/bin"),
-        (Join-Path $ScriptRoot "tests/ToolpathViewer.Tests/obj")
+        (Join-Path $ScriptRoot "src/AblationStudio.App/bin"),
+        (Join-Path $ScriptRoot "src/AblationStudio.App/obj"),
+        (Join-Path $ScriptRoot "src/AblationStudio.Core/bin"),
+        (Join-Path $ScriptRoot "src/AblationStudio.Core/obj"),
+        (Join-Path $ScriptRoot "src/AblationStudio.Rendering/bin"),
+        (Join-Path $ScriptRoot "src/AblationStudio.Rendering/obj"),
+        (Join-Path $ScriptRoot "tests/AblationStudio.Tests/bin"),
+        (Join-Path $ScriptRoot "tests/AblationStudio.Tests/obj")
     )
 
     foreach ($path in $cleanPaths) {
@@ -151,7 +151,7 @@ function Invoke-Clean {
 
 function Invoke-Build {
     Write-Banner "BUILDING SOLUTION ($Configuration)"
-    $solutionPath = Join-Path $ScriptRoot "ToolpathViewer.slnx"
+    $solutionPath = Join-Path $ScriptRoot "AblationStudio.slnx"
     
     & dotnet build $solutionPath `
         --configuration $Configuration `
@@ -167,7 +167,7 @@ function Invoke-Build {
 
 function Invoke-Test {
     Write-Banner "RUNNING UNIT TESTS ($Configuration)"
-    $testProject = Join-Path $ScriptRoot "tests/ToolpathViewer.Tests/ToolpathViewer.Tests.csproj"
+    $testProject = Join-Path $ScriptRoot "tests/AblationStudio.Tests/AblationStudio.Tests.csproj"
 
     & dotnet test $testProject `
         --configuration $Configuration `
@@ -186,7 +186,7 @@ function Invoke-Test {
 function Invoke-Publish {
     Write-Banner "PUBLISHING STANDALONE EXECUTABLE"
 
-    $appProject = Join-Path $ScriptRoot "src/ToolpathViewer.App/ToolpathViewer.App.csproj"
+    $appProject = Join-Path $ScriptRoot "src/AblationStudio.App/AblationStudio.App.csproj"
     $selfContained = -not $NoSelfContained
     $singleFile = -not $NoSingleFile
     $readyToRun = -not $NoReadyToRun
@@ -231,7 +231,7 @@ function Invoke-Publish {
     }
 
     # Inspect generated artifact
-    $exePath = Join-Path $OutputDir "ToolpathViewer.App.exe"
+    $exePath = Join-Path $OutputDir "AblationStudio.exe"
     if (Test-Path $exePath) {
         $exeFile = Get-Item $exePath
         $sizeMB = [Math]::Round($exeFile.Length / 1MB, 2)
@@ -239,7 +239,7 @@ function Invoke-Publish {
         Write-Success "Binary   : $exePath"
         Write-Success "Size     : $sizeMB MB"
     } else {
-        Write-Warn "Publish finished, but ToolpathViewer.App.exe was not found directly in $OutputDir"
+        Write-Warn "Publish finished, but AblationStudio.exe was not found directly in $OutputDir"
     }
 }
 

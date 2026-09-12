@@ -42,5 +42,5 @@ Leverage modern C# (versions 12 to 14) capabilities where appropriate:
 - **Run Unit Tests:** `dotnet test`
 - **Apply Code Formatting:** `dotnet format`
 - **Publish Standalone Executable (Script):** `.\build.cmd` or `.\build.ps1 -Target Publish`
-- **Publish Standalone Executable (dotnet CLI):** `dotnet publish src/ToolpathViewer.App -p:PublishProfile=win-x64-standalone`
+- **Publish Standalone Executable (dotnet CLI):** `dotnet publish src/AblationStudio.App -p:PublishProfile=win-x64-standalone`
 - **Clean Build Artifacts:** `.\build.cmd -Target Clean`

@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AblationStudio.App/AblationStudio.App.csproj" />
+    <Project Path="src/AblationStudio.Core/AblationStudio.Core.csproj" />
+    <Project Path="src/AblationStudio.Rendering/AblationStudio.Rendering.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AblationStudio.Tests/AblationStudio.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,6 +1,6 @@
-# ToolpathViewer
+# Ablation Studio
 
-A modern, high-performance 3D Toolpath Viewer built with WPF, .NET 10, OpenTK, and WPF-UI.
+A modern, high-performance Laser Ablation Studio & 3D Toolpath Viewer built with WPF, .NET 10, OpenTK, and WPF-UI.
 
 ## Requirements
 
@@ -26,7 +26,7 @@ To compile the application and package it into a single standalone `.exe` file:
 ```
 
 The output executable will be placed in the `artifacts/` folder:
-- `artifacts/ToolpathViewer.App.exe` (~75 MB, fully self-contained, single-file executable).
+- `artifacts/AblationStudio.exe` (~75 MB, fully self-contained, single-file executable).
 
 ### Build Script Options
 
@@ -62,13 +62,13 @@ The build script supports several options:
 You can also use the standard `dotnet` CLI with the included publish profile:
 
 ```powershell
-dotnet publish src/ToolpathViewer.App -p:PublishProfile=win-x64-standalone
+dotnet publish src/AblationStudio.App -p:PublishProfile=win-x64-standalone
 ```
 
 Or manually specify publish arguments:
 
 ```powershell
-dotnet publish src/ToolpathViewer.App/ToolpathViewer.App.csproj \
+dotnet publish src/AblationStudio.App/AblationStudio.App.csproj \
   -c Release \
   -r win-x64 \
   --self-contained true \
@@ -91,5 +91,5 @@ dotnet build
 dotnet test
 
 # Run application in debug mode
-dotnet run --project src/ToolpathViewer.App
+dotnet run --project src/AblationStudio.App
 ```
