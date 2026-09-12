@@ -1,0 +1,213 @@
+using AblationStudio.Core.Models;
+
+namespace AblationStudio.Core.Shapes.Hatching;
+
+public static class SpiralHatchGenerator
+{
+    private const int SamplesPerRevolution = 64;
+
+    public static List<ToolpathSegment> Generate(
+        ToolpathShape shape,
+        HatchSettings settings,
+        ref ToolpathPoint? currentPosition)
+    {
+        var segments = new List<ToolpathSegment>();
+        float stepover = MathF.Max(0.005f, settings.Stepover);
+        float z = shape.PositionZ;
+        int layerId = shape.LayerId;
+        float cx = shape.PositionX;
+        float cy = shape.PositionY;
+        float startAngleRad = settings.AngleDegrees * (MathF.PI / 180f);
+
+        // Specialized fast path for CircleShape
+        if (shape is CircleShape circle)
+        {
+            GenerateCircleSpiral(segments, circle, stepover, startAngleRad, ref currentPosition);
+            return segments;
+        }
+
+        // Universal boundary-clipped Archimedean spiral for general polygons/rectangles
+        List<HatchGeometry.Point2D> poly = HatchGeometry.GetPolygon2D(shape);
+        if (poly.Count < 3)
+        {
+            return segments;
+        }
+
+        // Find max distance from center to any boundary vertex
+        float maxR = 0.01f;
+        var center2D = new HatchGeometry.Point2D(cx, cy);
+        for (int i = 0; i < poly.Count; i++)
+        {
+            maxR = MathF.Max(maxR, center2D.DistanceTo(poly[i]));
+        }
+
+        float totalTurns = maxR / stepover;
+        int totalSteps = Math.Max(SamplesPerRevolution, (int)MathF.Ceiling(totalTurns * SamplesPerRevolution));
+        float dTheta = (2.0f * MathF.PI) / SamplesPerRevolution;
+        float b = stepover / (2.0f * MathF.PI);
+
+        HatchGeometry.Point2D prevPt = center2D;
+        bool prevInside = HatchGeometry.IsPointInPolygon(prevPt, poly);
+
+        for (int step = 1; step <= totalSteps; step++)
+        {
+            float theta = step * dTheta;
+            float r = b * theta;
+            if (r > maxR * 1.05f)
+            {
+                break;
+            }
+
+            float angle = theta + startAngleRad;
+            var currPt = new HatchGeometry.Point2D(cx + r * MathF.Cos(angle), cy + r * MathF.Sin(angle));
+            bool currInside = HatchGeometry.IsPointInPolygon(currPt, poly);
+
+            if (prevInside && currInside)
+            {
+                // Both points inside: cut move
+                var pStart = new ToolpathPoint(prevPt.X, prevPt.Y, z);
+                var pEnd = new ToolpathPoint(currPt.X, currPt.Y, z);
+
+                if (currentPosition is null || currentPosition.Value.DistanceTo(pStart) > 0.001f)
+                {
+                    if (currentPosition is not null)
+                    {
+                        segments.Add(new ToolpathSegment(currentPosition.Value, pStart, SegmentType.Rapid, layerId));
+                    }
+                }
+
+                segments.Add(new ToolpathSegment(pStart, pEnd, SegmentType.Hatch, layerId));
+                currentPosition = pEnd;
+            }
+            else if (prevInside && !currInside)
+            {
+                // Crossing from inside to outside: clip at boundary exit
+                if (TryFindBoundaryIntersection(poly, prevPt, currPt, out HatchGeometry.Point2D exitPt))
+                {
+                    var pStart = new ToolpathPoint(prevPt.X, prevPt.Y, z);
+                    var pExit = new ToolpathPoint(exitPt.X, exitPt.Y, z);
+
+                    if (currentPosition is null || currentPosition.Value.DistanceTo(pStart) > 0.001f)
+                    {
+                        if (currentPosition is not null)
+                        {
+                            segments.Add(new ToolpathSegment(currentPosition.Value, pStart, SegmentType.Rapid, layerId));
+                        }
+                    }
+
+                    segments.Add(new ToolpathSegment(pStart, pExit, SegmentType.Hatch, layerId));
+                    currentPosition = pExit;
+                }
+            }
+            else if (!prevInside && currInside)
+            {
+                // Crossing from outside to inside: clip at boundary entry
+                if (TryFindBoundaryIntersection(poly, prevPt, currPt, out HatchGeometry.Point2D entryPt))
+                {
+                    var pEntry = new ToolpathPoint(entryPt.X, entryPt.Y, z);
+                    var pEnd = new ToolpathPoint(currPt.X, currPt.Y, z);
+
+                    if (currentPosition is null || currentPosition.Value.DistanceTo(pEntry) > 0.001f)
+                    {
+                        if (currentPosition is not null)
+                        {
+                            segments.Add(new ToolpathSegment(currentPosition.Value, pEntry, SegmentType.Rapid, layerId));
+                        }
+                    }
+
+                    segments.Add(new ToolpathSegment(pEntry, pEnd, SegmentType.Hatch, layerId));
+                    currentPosition = pEnd;
+                }
+            }
+
+            prevPt = currPt;
+            prevInside = currInside;
+        }
+
+        return segments;
+    }
+
+    private static void GenerateCircleSpiral(
+        List<ToolpathSegment> segments,
+        CircleShape circle,
+        float stepover,
+        float startAngleRad,
+        ref ToolpathPoint? currentPosition)
+    {
+        float rMax = circle.Radius;
+        if (rMax <= 0.01f)
+        {
+            return;
+        }
+
+        float cx = circle.PositionX;
+        float cy = circle.PositionY;
+        float cz = circle.PositionZ;
+        int layerId = circle.LayerId;
+
+        float totalTurns = rMax / stepover;
+        int totalSteps = Math.Max(SamplesPerRevolution, (int)MathF.Ceiling(totalTurns * SamplesPerRevolution));
+        float dTheta = (2.0f * MathF.PI) / SamplesPerRevolution;
+        float b = stepover / (2.0f * MathF.PI);
+
+        var center = new ToolpathPoint(cx, cy, cz);
+        if (currentPosition is null || currentPosition.Value.DistanceTo(center) > 0.001f)
+        {
+            if (currentPosition is not null)
+            {
+                segments.Add(new ToolpathSegment(currentPosition.Value, center, SegmentType.Rapid, layerId));
+            }
+        }
+        currentPosition = center;
+
+        ToolpathPoint prevPt = center;
+
+        for (int step = 1; step <= totalSteps; step++)
+        {
+            float theta = step * dTheta;
+            float r = MathF.Min(rMax, b * theta);
+            float angle = theta + startAngleRad;
+
+            float x = cx + r * MathF.Cos(angle);
+            float y = cy + r * MathF.Sin(angle);
+            var nextPt = new ToolpathPoint(x, y, cz);
+
+            segments.Add(new ToolpathSegment(prevPt, nextPt, SegmentType.Hatch, layerId));
+            prevPt = nextPt;
+            currentPosition = nextPt;
+
+            if (r >= rMax - 1e-4f)
+            {
+                break;
+            }
+        }
+    }
+
+    private static bool TryFindBoundaryIntersection(
+        IReadOnlyList<HatchGeometry.Point2D> polygon,
+        HatchGeometry.Point2D p1,
+        HatchGeometry.Point2D p2,
+        out HatchGeometry.Point2D nearestIntersection)
+    {
+        nearestIntersection = default;
+        float minDistance = float.MaxValue;
+        bool found = false;
+
+        int count = polygon.Count;
+        for (int i = 0, j = count - 1; i < count; j = i++)
+        {
+            if (HatchGeometry.TryIntersectSegments(p1, p2, polygon[j], polygon[i], out HatchGeometry.Point2D hit))
+            {
+                float dist = p1.DistanceTo(hit);
+                if (dist < minDistance)
+                {
+                    minDistance = dist;
+                    nearestIntersection = hit;
+                    found = true;
+                }
+            }
+        }
+
+        return found;
+    }
+}

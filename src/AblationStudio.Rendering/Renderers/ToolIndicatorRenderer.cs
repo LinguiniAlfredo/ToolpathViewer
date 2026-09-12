@@ -1,4 +1,4 @@
-﻿using OpenTK.Graphics.OpenGL4;
+using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using AblationStudio.Core.Models;
 using AblationStudio.Rendering.Shaders;
@@ -22,8 +22,9 @@ public sealed class ToolIndicatorRenderer : IDisposable
 
     public bool IsVisible { get; set; }
 
-    public static readonly Vector4 CutColor = new(0.0f, 0.90f, 1.0f, 1.0f);     // Neon Cyan
-    public static readonly Vector4 RapidColor = new(1.0f, 0.65f, 0.05f, 1.0f); // Vivid Amber
+    public static readonly Vector4 CutColor = new(0.0f, 0.90f, 1.0f, 1.0f);     // Neon Cyan (Profile / M03)
+    public static readonly Vector4 HatchColor = new(0.85f, 0.27f, 0.94f, 1.0f); // Neon Magenta (Hatch / M03)
+    public static readonly Vector4 RapidColor = new(1.0f, 0.65f, 0.05f, 1.0f); // Vivid Amber (Rapid / M05)
     public static readonly Vector4 WhiteColor = new(1.0f, 1.0f, 1.0f, 0.85f);
 
     public void Initialize()
@@ -51,8 +52,12 @@ public sealed class ToolIndicatorRenderer : IDisposable
         float height = s * 2.5f;
         float collarRadius = s * 0.8f;
         float reticleRadius = s * 0.6f;
-
-        Vector4 mainColor = segmentType == SegmentType.Cut ? CutColor : RapidColor;
+        Vector4 mainColor = segmentType switch
+        {
+            SegmentType.Cut => CutColor,
+            SegmentType.Hatch => HatchColor,
+            _ => RapidColor
+        };
 
         const int sides = 16;
         Vector3 tip = position;

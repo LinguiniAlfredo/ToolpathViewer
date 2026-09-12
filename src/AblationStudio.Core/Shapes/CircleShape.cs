@@ -1,4 +1,4 @@
-﻿using AblationStudio.Core.Models;
+using AblationStudio.Core.Models;
 
 namespace AblationStudio.Core.Shapes;
 
@@ -94,10 +94,15 @@ public sealed class CircleShape : ToolpathShape
         return dist <= _radius + tolerance;
     }
 
-    public override ToolpathShape Clone() => new CircleShape(PositionX, PositionY, PositionZ, Radius, SegmentsCount)
+    public override ToolpathShape Clone()
     {
-        Name = $"{Name} Copy",
-        LayerId = LayerId,
-        CutType = CutType
-    };
+        var copy = new CircleShape(PositionX, PositionY, PositionZ, Radius, SegmentsCount)
+        {
+            Name = $"{Name} Copy",
+            LayerId = LayerId,
+            CutType = CutType
+        };
+        copy.Hatch.CopyFrom(Hatch);
+        return copy;
+    }
 }

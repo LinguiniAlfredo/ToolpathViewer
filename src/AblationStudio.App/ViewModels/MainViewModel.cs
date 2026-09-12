@@ -17,6 +17,7 @@ public sealed class MainViewModel : ObservableObject
     private string _statusText = "Ready. Select a shape tool to draw or click 'Open Toolpath'.";
     private bool _isLoading;
     private bool _showCuts = true;
+    private bool _showHatch = true;
     private bool _showRapids = true;
     private bool _showGrid = true;
     private bool _showAxes = true;
@@ -75,8 +76,11 @@ public sealed class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(FileSizeText));
                 OnPropertyChanged(nameof(TotalSegments));
                 OnPropertyChanged(nameof(CutSegmentsCount));
+                OnPropertyChanged(nameof(HatchSegmentsCount));
                 OnPropertyChanged(nameof(RapidSegmentsCount));
                 OnPropertyChanged(nameof(TotalCutLengthText));
+                OnPropertyChanged(nameof(TotalHatchLengthText));
+                OnPropertyChanged(nameof(TotalLaserLengthText));
                 OnPropertyChanged(nameof(TotalRapidLengthText));
                 OnPropertyChanged(nameof(TotalLengthText));
                 OnPropertyChanged(nameof(DimensionsText));
@@ -130,9 +134,12 @@ public sealed class MainViewModel : ObservableObject
 
     public int TotalSegments => LoadedToolpath.Statistics.TotalSegments;
     public int CutSegmentsCount => LoadedToolpath.Statistics.CutSegmentsCount;
+    public int HatchSegmentsCount => LoadedToolpath.Statistics.HatchSegmentsCount;
     public int RapidSegmentsCount => LoadedToolpath.Statistics.RapidSegmentsCount;
 
     public string TotalCutLengthText => $"{LoadedToolpath.Statistics.TotalCutLength:F2} mm";
+    public string TotalHatchLengthText => $"{LoadedToolpath.Statistics.TotalHatchLength:F2} mm";
+    public string TotalLaserLengthText => $"{LoadedToolpath.Statistics.TotalLaserLength:F2} mm";
     public string TotalRapidLengthText => $"{LoadedToolpath.Statistics.TotalRapidLength:F2} mm";
     public string TotalLengthText => $"{LoadedToolpath.Statistics.TotalLength:F2} mm";
 
@@ -178,6 +185,18 @@ public sealed class MainViewModel : ObservableObject
         set
         {
             if (SetProperty(ref _showCuts, value))
+            {
+                RequestRender?.Invoke();
+            }
+        }
+    }
+
+    public bool ShowHatch
+    {
+        get => _showHatch;
+        set
+        {
+            if (SetProperty(ref _showHatch, value))
             {
                 RequestRender?.Invoke();
             }
@@ -304,8 +323,18 @@ public sealed class MainViewModel : ObservableObject
 
     public string SimulationStateText => _simulator?.State switch
     {
-        SimulationState.Playing => _simulator.CurrentSegmentType == SegmentType.Cut ? "Laser ON (Cut - M03)" : "Rapid Move (M05)",
-        SimulationState.Paused => "Paused",
+        SimulationState.Playing => _simulator.CurrentSegmentType switch
+        {
+            SegmentType.Cut => "Laser ON (Profile - M03)",
+            SegmentType.Hatch => "Laser ON (Hatch - M03)",
+            _ => "Rapid Move (M05)"
+        },
+        SimulationState.Paused => _simulator.CurrentSegmentType switch
+        {
+            SegmentType.Cut => "Paused (Profile - M03)",
+            SegmentType.Hatch => "Paused (Hatch - M03)",
+            _ => "Paused (Rapid - M05)"
+        },
         SimulationState.Completed => "Completed",
         _ => "Idle"
     };
@@ -651,7 +680,7 @@ public sealed class MainViewModel : ObservableObject
                 sb.AppendLine($"HCH {currentLayer} 1 ;Layer {currentLayer}");
             }
 
-            string cmd = seg.Type == SegmentType.Cut ? "M03" : "M05";
+            string cmd = (seg.Type == SegmentType.Cut || seg.Type == SegmentType.Hatch) ? "M03" : "M05";
             sb.AppendLine($"SL X{seg.End.X:F4} Y{seg.End.Y:F4} Z{seg.End.Z:F4} {cmd}");
         }
 

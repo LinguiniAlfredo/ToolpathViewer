@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using AblationStudio.Core.Models;
 
 namespace AblationStudio.Core.Parser;
@@ -78,6 +78,12 @@ public sealed class ToolpathParser
         }
 
         // Check command prefix
+        if (line.StartsWith("PFL", StringComparison.OrdinalIgnoreCase))
+        {
+            ParseProfileCommand(line, ref state);
+            return;
+        }
+
         if (line.StartsWith("HCH", StringComparison.OrdinalIgnoreCase))
         {
             ParseHatchCommand(line, ref state);
@@ -90,9 +96,26 @@ public sealed class ToolpathParser
         }
     }
 
+    private static void ParseProfileCommand(ReadOnlySpan<char> line, ref ParserState state)
+    {
+        // Format: PFL <layerId>
+        state.HasSeenProfile = true;
+        state.IsHatchBlock = false;
+        ReadOnlySpan<char> remaining = line[3..].Trim();
+        int spaceIndex = remaining.IndexOfAny(' ', '\t');
+        ReadOnlySpan<char> layerSpan = spaceIndex >= 0 ? remaining[..spaceIndex] : remaining;
+
+        if (int.TryParse(layerSpan, NumberStyles.Integer, CultureInfo.InvariantCulture, out int layerId))
+        {
+            state.CurrentLayerId = layerId;
+        }
+    }
+
     private static void ParseHatchCommand(ReadOnlySpan<char> line, ref ParserState state)
     {
         // Format: HCH <layerId> [patternId]
+        // If the toolpath uses PFL/HCH notation, HCH marks inner infill hatch blocks
+        state.IsHatchBlock = state.HasSeenProfile;
         ReadOnlySpan<char> remaining = line[3..].Trim();
         int spaceIndex = remaining.IndexOfAny(' ', '\t');
         ReadOnlySpan<char> layerSpan = spaceIndex >= 0 ? remaining[..spaceIndex] : remaining;
@@ -162,7 +185,7 @@ public sealed class ToolpathParser
                     {
                         SegmentType mode = mCode switch
                         {
-                            3 => SegmentType.Cut,
+                            3 => state.IsHatchBlock ? SegmentType.Hatch : SegmentType.Cut,
                             5 => SegmentType.Rapid,
                             _ => state.CurrentMode
                         };
@@ -187,6 +210,10 @@ public sealed class ToolpathParser
 
         var startPoint = new ToolpathPoint(state.CurrentX, state.CurrentY, state.CurrentZ);
         SegmentType effectiveType = moveTypeOverride ?? state.CurrentMode;
+        if (effectiveType == SegmentType.Cut && state.IsHatchBlock)
+        {
+            effectiveType = SegmentType.Hatch;
+        }
 
         // If coordinates changed, record segment
         if (hasCoordinatesInLine && startPoint.DistanceTo(nextPoint) > 1e-6f)
@@ -206,6 +233,8 @@ public sealed class ToolpathParser
         public SegmentType CurrentMode = SegmentType.Rapid;
         public int CurrentLayerId = 1;
         public bool HasPosition = false;
+        public bool IsHatchBlock = false;
+        public bool HasSeenProfile = false;
 
         public ParserState()
         {

@@ -1,4 +1,4 @@
-﻿using OpenTK.Graphics.OpenGL4;
+using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using AblationStudio.Core.Models;
 using AblationStudio.Rendering.Shaders;
@@ -10,6 +10,10 @@ public sealed class ToolpathRenderer : IDisposable
     private int _cutVao;
     private int _cutVbo;
     private int _cutVertexCount;
+
+    private int _hatchVao;
+    private int _hatchVbo;
+    private int _hatchVertexCount;
 
     private int _rapidVao;
     private int _rapidVbo;
@@ -23,12 +27,14 @@ public sealed class ToolpathRenderer : IDisposable
     private bool _disposed;
 
     // Fluent Colors
-    public static readonly Vector4 CutColor = new(0.0f, 0.85f, 1.0f, 1.0f);     // Fluent Cyan
+    public static readonly Vector4 CutColor = new(0.0f, 0.85f, 1.0f, 1.0f);     // Fluent Cyan (Profile)
+    public static readonly Vector4 HatchColor = new(0.85f, 0.27f, 0.94f, 1.0f); // Fluent Neon Magenta (Hatch)
     public static readonly Vector4 RapidColor = new(1.0f, 0.65f, 0.0f, 0.65f);  // Fluent Amber
     public static readonly Vector4 StartNodeColor = new(0.1f, 0.9f, 0.2f, 1.0f);// Green
     public static readonly Vector4 EndNodeColor = new(1.0f, 0.25f, 0.25f, 1.0f);// Red
 
     public bool ShowCuts { get; set; } = true;
+    public bool ShowHatch { get; set; } = true;
     public bool ShowRapids { get; set; } = true;
     public bool ShowMarkers { get; set; } = true;
     public float LineWidth { get; set; } = 2.0f;
@@ -38,6 +44,10 @@ public sealed class ToolpathRenderer : IDisposable
         _cutVao = GL.GenVertexArray();
         _cutVbo = GL.GenBuffer();
         SetupVaoAttributes(_cutVao, _cutVbo);
+
+        _hatchVao = GL.GenVertexArray();
+        _hatchVbo = GL.GenBuffer();
+        SetupVaoAttributes(_hatchVao, _hatchVbo);
 
         _rapidVao = GL.GenVertexArray();
         _rapidVbo = GL.GenBuffer();
@@ -56,18 +66,24 @@ public sealed class ToolpathRenderer : IDisposable
         }
 
         var cutVertices = new List<float>();
+        var hatchVertices = new List<float>();
         var rapidVertices = new List<float>();
         var markerVertices = new List<float>();
 
         foreach (ToolpathSegment seg in toolpath.Segments)
         {
-            if (seg.Type == SegmentType.Cut)
+            switch (seg.Type)
             {
-                AddSegmentVertices(cutVertices, seg, CutColor);
-            }
-            else
-            {
-                AddSegmentVertices(rapidVertices, seg, RapidColor);
+                case SegmentType.Cut:
+                    AddSegmentVertices(cutVertices, seg, CutColor);
+                    break;
+                case SegmentType.Hatch:
+                    AddSegmentVertices(hatchVertices, seg, HatchColor);
+                    break;
+                case SegmentType.Rapid:
+                default:
+                    AddSegmentVertices(rapidVertices, seg, RapidColor);
+                    break;
             }
         }
 
@@ -82,6 +98,10 @@ public sealed class ToolpathRenderer : IDisposable
         // Upload Cut buffers
         _cutVertexCount = cutVertices.Count / 7;
         UploadBufferData(_cutVao, _cutVbo, cutVertices);
+
+        // Upload Hatch buffers
+        _hatchVertexCount = hatchVertices.Count / 7;
+        UploadBufferData(_hatchVao, _hatchVbo, hatchVertices);
 
         // Upload Rapid buffers
         _rapidVertexCount = rapidVertices.Count / 7;
@@ -108,14 +128,21 @@ public sealed class ToolpathRenderer : IDisposable
         GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
         GL.LineWidth(Math.Clamp(LineWidth, 1.0f, 10.0f));
 
-        // Draw Rapid moves first so Cuts are rendered on top
+        // Draw Rapid moves first so Cuts and Hatch are rendered on top
         if (ShowRapids && _rapidVertexCount > 0)
         {
             GL.BindVertexArray(_rapidVao);
             GL.DrawArrays(PrimitiveType.Lines, 0, _rapidVertexCount);
         }
 
-        // Draw Cutting moves
+        // Draw Hatch infill moves
+        if (ShowHatch && _hatchVertexCount > 0)
+        {
+            GL.BindVertexArray(_hatchVao);
+            GL.DrawArrays(PrimitiveType.Lines, 0, _hatchVertexCount);
+        }
+
+        // Draw Profile Cutting moves on top of hatch
         if (ShowCuts && _cutVertexCount > 0)
         {
             GL.BindVertexArray(_cutVao);
@@ -210,6 +237,8 @@ public sealed class ToolpathRenderer : IDisposable
         {
             if (_cutVbo != 0) GL.DeleteBuffer(_cutVbo);
             if (_cutVao != 0) GL.DeleteVertexArray(_cutVao);
+            if (_hatchVbo != 0) GL.DeleteBuffer(_hatchVbo);
+            if (_hatchVao != 0) GL.DeleteVertexArray(_hatchVao);
             if (_rapidVbo != 0) GL.DeleteBuffer(_rapidVbo);
             if (_rapidVao != 0) GL.DeleteVertexArray(_rapidVao);
             if (_markersVbo != 0) GL.DeleteBuffer(_markersVbo);

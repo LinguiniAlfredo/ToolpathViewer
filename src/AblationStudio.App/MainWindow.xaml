@@ -7,6 +7,7 @@
                   xmlns:controls="clr-namespace:AblationStudio.App.Controls"
                   xmlns:vm="clr-namespace:AblationStudio.App.ViewModels"
                   xmlns:core="clr-namespace:AblationStudio.Core.Models;assembly=AblationStudio.Core"
+                  xmlns:shapes="clr-namespace:AblationStudio.Core.Shapes;assembly=AblationStudio.Core"
                   mc:Ignorable="d"
                   Title="{Binding WindowTitle}"
                   Height="780" Width="1200"
@@ -180,6 +181,9 @@
                     <MenuItem Header="Show _Cut Moves (M03)"
                               IsCheckable="True"
                               IsChecked="{Binding ShowCuts}" />
+                    <MenuItem Header="Show _Hatch Moves (M03)"
+                              IsCheckable="True"
+                              IsChecked="{Binding ShowHatch}" />
                     <MenuItem Header="Show _Rapid Moves (M05)"
                               IsCheckable="True"
                               IsChecked="{Binding ShowRapids}" />
@@ -360,6 +364,16 @@
                     <StackPanel Orientation="Horizontal">
                         <Border Width="8" Height="8" CornerRadius="4" Background="#00D2FF" Margin="0,0,6,0" VerticalAlignment="Center" />
                         <TextBlock Text="Cuts (M03)"
+                                   Foreground="{Binding RelativeSource={RelativeSource AncestorType=ContentPresenter}, Path=(TextElement.Foreground)}" />
+                    </StackPanel>
+                </ToggleButton>
+
+                <ToggleButton IsChecked="{Binding ShowHatch}"
+                              ToolTip="Toggle Hatch Infill Moves (M03)"
+                              Margin="0,0,4,0">
+                    <StackPanel Orientation="Horizontal">
+                        <Border Width="8" Height="8" CornerRadius="4" Background="#D946EF" Margin="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBlock Text="Hatch (M03)"
                                    Foreground="{Binding RelativeSource={RelativeSource AncestorType=ContentPresenter}, Path=(TextElement.Foreground)}" />
                     </StackPanel>
                 </ToggleButton>
@@ -659,9 +673,27 @@
                                                 <Style TargetType="Border">
                                                     <Setter Property="Background" Value="#18FFFFFF" />
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsSimulationPlaying}" Value="True">
+                                                        <MultiDataTrigger>
+                                                            <MultiDataTrigger.Conditions>
+                                                                <Condition Binding="{Binding IsSimulationActive}" Value="True" />
+                                                                <Condition Binding="{Binding SimulationSegmentType}" Value="{x:Static core:SegmentType.Cut}" />
+                                                            </MultiDataTrigger.Conditions>
                                                             <Setter Property="Background" Value="#2500E5FF" />
-                                                        </DataTrigger>
+                                                        </MultiDataTrigger>
+                                                        <MultiDataTrigger>
+                                                            <MultiDataTrigger.Conditions>
+                                                                <Condition Binding="{Binding IsSimulationActive}" Value="True" />
+                                                                <Condition Binding="{Binding SimulationSegmentType}" Value="{x:Static core:SegmentType.Hatch}" />
+                                                            </MultiDataTrigger.Conditions>
+                                                            <Setter Property="Background" Value="#25D946EF" />
+                                                        </MultiDataTrigger>
+                                                        <MultiDataTrigger>
+                                                            <MultiDataTrigger.Conditions>
+                                                                <Condition Binding="{Binding IsSimulationActive}" Value="True" />
+                                                                <Condition Binding="{Binding SimulationSegmentType}" Value="{x:Static core:SegmentType.Rapid}" />
+                                                            </MultiDataTrigger.Conditions>
+                                                            <Setter Property="Background" Value="#25FFAA00" />
+                                                        </MultiDataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </Border.Style>
@@ -773,9 +805,17 @@
                                     <Grid Margin="0,2">
                                         <StackPanel Orientation="Horizontal">
                                             <Border Width="8" Height="8" CornerRadius="4" Background="#00D2FF" Margin="0,0,6,0" VerticalAlignment="Center" />
-                                            <TextBlock Text="Cut Moves (M03):" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock Text="Profile Moves (M03):" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                         </StackPanel>
                                         <TextBlock Text="{Binding CutSegmentsCount}" FontWeight="SemiBold" HorizontalAlignment="Right" />
+                                    </Grid>
+
+                                    <Grid Margin="0,2">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="8" Height="8" CornerRadius="4" Background="#D946EF" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                            <TextBlock Text="Hatch Moves (M03):" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding HatchSegmentsCount}" FontWeight="SemiBold" HorizontalAlignment="Right" />
                                     </Grid>
 
                                     <Grid Margin="0,2">
@@ -789,8 +829,13 @@
                                     <Separator Margin="0,8" />
 
                                     <Grid Margin="0,2">
-                                        <TextBlock Text="Total Cut Length:" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Text="Total Profile Length:" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                         <TextBlock Text="{Binding TotalCutLengthText}" FontWeight="SemiBold" Foreground="#00D2FF" HorizontalAlignment="Right" />
+                                    </Grid>
+
+                                    <Grid Margin="0,2">
+                                        <TextBlock Text="Total Hatch Length:" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Text="{Binding TotalHatchLengthText}" FontWeight="SemiBold" Foreground="#D946EF" HorizontalAlignment="Right" />
                                     </Grid>
 
                                     <Grid Margin="0,2">
@@ -947,178 +992,297 @@
                                 </StackPanel>
                             </ui:Card>
 
-                            <!-- Circle Parameters -->
+                            <!-- Shape Dimensions Card -->
                             <ui:Card Margin="0,0,0,12" Padding="12">
-                                <ui:Card.Style>
-                                    <Style TargetType="ui:Card">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding SelectedShape.ShapeType}" Value="Circle">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ui:Card.Style>
                                 <StackPanel>
-                                    <TextBlock Text="CIRCLE DIMENSIONS"
+                                    <TextBlock Text="DIMENSIONS"
                                                FontSize="10"
                                                FontWeight="Bold"
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                                Margin="0,0,0,8" />
 
-                                    <Grid Margin="0,2,0,8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="8" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0">
-                                            <TextBlock Text="Radius (mm):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
-                                            <ui:TextBox Text="{Binding SelectedShape.Radius, UpdateSourceTrigger=PropertyChanged}" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2">
-                                            <TextBlock Text="Diameter (mm):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
-                                            <ui:TextBox Text="{Binding SelectedShape.Diameter, UpdateSourceTrigger=PropertyChanged}" />
-                                        </StackPanel>
-                                    </Grid>
+                                    <!-- Circle Parameters -->
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedShape.ShapeType}" Value="Circle">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
 
-                                    <TextBlock Text="Arc Discretization (Segments):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
-                                    <ui:TextBox Text="{Binding SelectedShape.SegmentsCount, UpdateSourceTrigger=PropertyChanged}" />
+                                        <Grid Margin="0,2,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="Radius (mm):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
+                                                <ui:TextBox Text="{Binding SelectedShape.Radius, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Diameter (mm):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
+                                                <ui:TextBox Text="{Binding SelectedShape.Diameter, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <TextBlock Text="Arc Discretization (Segments):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
+                                        <ui:TextBox Text="{Binding SelectedShape.SegmentsCount, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+
+                                    <!-- Rectangle Parameters -->
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedShape.ShapeType}" Value="Rectangle">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+
+                                        <Grid Margin="0,2,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="Width (mm):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
+                                                <ui:TextBox Text="{Binding SelectedShape.Width, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Height (mm):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
+                                                <ui:TextBox Text="{Binding SelectedShape.Height, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <TextBlock Text="Rotation Angle (°):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
+                                        <ui:TextBox Text="{Binding SelectedShape.RotationDegrees, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+
+                                    <!-- Polygon Parameters -->
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedShape.ShapeType}" Value="Polygon">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+
+                                        <Grid Margin="0,2,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="Radius (mm):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
+                                                <ui:TextBox Text="{Binding SelectedShape.Radius, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Vertices / Sides:" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
+                                                <ui:TextBox Text="{Binding SelectedShape.Sides, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <TextBlock Text="Rotation Angle (°):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
+                                        <ui:TextBox Text="{Binding SelectedShape.RotationDegrees, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+
+                                    <!-- Line Parameters -->
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedShape.ShapeType}" Value="Line">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+
+                                        <Grid Margin="0,2,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="6" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="6" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="End X" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
+                                                <ui:TextBox Text="{Binding SelectedShape.EndX, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="End Y" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
+                                                <ui:TextBox Text="{Binding SelectedShape.EndY, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="4">
+                                                <TextBlock Text="End Z" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
+                                                <ui:TextBox Text="{Binding SelectedShape.EndZ, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <Grid Margin="0,2">
+                                            <TextBlock Text="Length:" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock Text="{Binding SelectedShape.Length, StringFormat='{}{0:F2} mm'}" FontWeight="SemiBold" HorizontalAlignment="Right" />
+                                        </Grid>
+                                        <Grid Margin="0,2">
+                                            <TextBlock Text="Angle:" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock Text="{Binding SelectedShape.AngleDegrees, StringFormat='{}{0:F1}°'}" FontWeight="SemiBold" HorizontalAlignment="Right" />
+                                        </Grid>
+                                    </StackPanel>
                                 </StackPanel>
                             </ui:Card>
 
-                            <!-- Rectangle Parameters -->
-                            <ui:Card Margin="0,0,0,12" Padding="12">
-                                <ui:Card.Style>
-                                    <Style TargetType="ui:Card">
+                            <!-- Hatch Fill Card (Visible for closed shapes: Circle, Rectangle, Polygon) -->
+                            <Grid Margin="0,0,0,12">
+                                <Grid.Style>
+                                    <Style TargetType="Grid">
                                         <Setter Property="Visibility" Value="Collapsed" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding SelectedShape.ShapeType}" Value="Rectangle">
+                                            <DataTrigger Binding="{Binding SelectedShape.IsClosed}" Value="True">
                                                 <Setter Property="Visibility" Value="Visible" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
-                                </ui:Card.Style>
-                                <StackPanel>
-                                    <TextBlock Text="RECTANGLE DIMENSIONS"
-                                               FontSize="10"
-                                               FontWeight="Bold"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                               Margin="0,0,0,8" />
+                                </Grid.Style>
 
-                                    <Grid Margin="0,2,0,8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="8" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0">
-                                            <TextBlock Text="Width (mm):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
-                                            <ui:TextBox Text="{Binding SelectedShape.Width, UpdateSourceTrigger=PropertyChanged}" />
+                                <ui:Card Padding="12">
+                                    <StackPanel>
+                                        <DockPanel Margin="0,0,0,8">
+                                            <TextBlock Text="HATCH FILL"
+                                                       FontSize="10"
+                                                       FontWeight="Bold"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                       VerticalAlignment="Center" />
+                                            <CheckBox IsChecked="{Binding SelectedShape.Hatch.IsEnabled, Mode=TwoWay}"
+                                                      Content="Enable Fill"
+                                                      HorizontalAlignment="Right"
+                                                      FontSize="11" />
+                                        </DockPanel>
+
+                                        <!-- Fill Parameters (Enabled only when Hatch.IsEnabled is True) -->
+                                        <StackPanel IsEnabled="{Binding SelectedShape.Hatch.IsEnabled}">
+                                            <!-- Pattern Selector -->
+                                            <TextBlock Text="Pattern Style:" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,4,0,2" />
+                                            <ComboBox SelectedValue="{Binding SelectedShape.Hatch.Pattern, Mode=TwoWay}"
+                                                      SelectedValuePath="Tag"
+                                                      HorizontalAlignment="Stretch"
+                                                      Margin="0,0,0,8">
+                                                <ComboBoxItem Content="ZigZag" Tag="{x:Static shapes:HatchPatternType.ZigZag}" />
+                                                <ComboBoxItem Content="Spiral" Tag="{x:Static shapes:HatchPatternType.Spiral}" />
+                                                <ComboBoxItem Content="Follow Profile" Tag="{x:Static shapes:HatchPatternType.FollowProfile}" />
+                                            </ComboBox>
+
+                                            <!-- Stepover (Line Spacing / Inset Distance) -->
+                                            <Grid Margin="0,2">
+                                                <TextBlock Text="Stepover (mm):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                <TextBlock Text="{Binding SelectedShape.Hatch.Stepover, StringFormat='{}{0:F2} mm'}"
+                                                           FontWeight="SemiBold"
+                                                           HorizontalAlignment="Right"
+                                                           FontSize="11" />
+                                            </Grid>
+                                            <Slider Minimum="0.05"
+                                                    Maximum="5.0"
+                                                    TickFrequency="0.05"
+                                                    IsSnapToTickEnabled="False"
+                                                    Value="{Binding SelectedShape.Hatch.Stepover, Mode=TwoWay}"
+                                                    Margin="0,2,0,8" />
+
+                                            <!-- Angle (Degrees) -->
+                                            <Grid Margin="0,2">
+                                                <TextBlock Text="Angle / Rotation (°):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                <TextBlock Text="{Binding SelectedShape.Hatch.AngleDegrees, StringFormat='{}{0:F0}°'}"
+                                                           FontWeight="SemiBold"
+                                                           HorizontalAlignment="Right"
+                                                           FontSize="11" />
+                                            </Grid>
+                                            <Slider Minimum="0"
+                                                    Maximum="360"
+                                                    Value="{Binding SelectedShape.Hatch.AngleDegrees, Mode=TwoWay}"
+                                                    Margin="0,2,0,8" />
+
+                                            <!-- ZigZag Specific Settings -->
+                                            <StackPanel>
+                                                <StackPanel.Style>
+                                                    <Style TargetType="StackPanel">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding SelectedShape.Hatch.Pattern}" Value="{x:Static shapes:HatchPatternType.ZigZag}">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </StackPanel.Style>
+
+                                                <!-- Line Skip (Thermal Dispersion) -->
+                                                <Grid Margin="0,2">
+                                                    <TextBlock Text="Line Skip (Cooling):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                    <TextBlock FontWeight="SemiBold" HorizontalAlignment="Right" FontSize="11">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Text" Value="{Binding SelectedShape.Hatch.LineSkip, StringFormat='{}{0}'}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding SelectedShape.Hatch.AutoLineSkip}" Value="True">
+                                                                        <Setter Property="Text" Value="Auto" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Grid>
+                                                <Slider Minimum="1"
+                                                        Maximum="20"
+                                                        TickFrequency="1"
+                                                        IsSnapToTickEnabled="True"
+                                                        Value="{Binding SelectedShape.Hatch.LineSkip, Mode=TwoWay}"
+                                                        Margin="0,2,0,4">
+                                                    <Slider.Style>
+                                                        <Style TargetType="Slider" BasedOn="{StaticResource {x:Type Slider}}">
+                                                            <Setter Property="IsEnabled" Value="True" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding SelectedShape.Hatch.AutoLineSkip}" Value="True">
+                                                                    <Setter Property="IsEnabled" Value="False" />
+                                                                    <Setter Property="Opacity" Value="0.4" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Slider.Style>
+                                                </Slider>
+
+                                                <CheckBox IsChecked="{Binding SelectedShape.Hatch.AutoLineSkip, Mode=TwoWay}"
+                                                          Content="Auto Maximize Line Distance"
+                                                          FontSize="11"
+                                                          Margin="0,0,0,6" />
+
+                                                <CheckBox IsChecked="{Binding SelectedShape.Hatch.CrossHatch, Mode=TwoWay}"
+                                                          Content="Cross-Hatch (90° Dual Pass)"
+                                                          FontSize="11"
+                                                          Margin="0,2,0,4" />
+                                            </StackPanel>
+
+                                            <CheckBox IsChecked="{Binding SelectedShape.Hatch.KeepBoundary, Mode=TwoWay}"
+                                                      Content="Keep Profile Boundary Outline"
+                                                      FontSize="11"
+                                                      Margin="0,2,0,4" />
                                         </StackPanel>
-                                        <StackPanel Grid.Column="2">
-                                            <TextBlock Text="Height (mm):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
-                                            <ui:TextBox Text="{Binding SelectedShape.Height, UpdateSourceTrigger=PropertyChanged}" />
-                                        </StackPanel>
-                                    </Grid>
-
-                                    <TextBlock Text="Rotation Angle (°):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
-                                    <ui:TextBox Text="{Binding SelectedShape.RotationDegrees, UpdateSourceTrigger=PropertyChanged}" />
-                                </StackPanel>
-                            </ui:Card>
-
-                            <!-- Polygon Parameters -->
-                            <ui:Card Margin="0,0,0,12" Padding="12">
-                                <ui:Card.Style>
-                                    <Style TargetType="ui:Card">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding SelectedShape.ShapeType}" Value="Polygon">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ui:Card.Style>
-                                <StackPanel>
-                                    <TextBlock Text="POLYGON DIMENSIONS"
-                                               FontSize="10"
-                                               FontWeight="Bold"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                               Margin="0,0,0,8" />
-
-                                    <Grid Margin="0,2,0,8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="8" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0">
-                                            <TextBlock Text="Radius (mm):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
-                                            <ui:TextBox Text="{Binding SelectedShape.Radius, UpdateSourceTrigger=PropertyChanged}" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2">
-                                            <TextBlock Text="Vertices / Sides:" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
-                                            <ui:TextBox Text="{Binding SelectedShape.Sides, UpdateSourceTrigger=PropertyChanged}" />
-                                        </StackPanel>
-                                    </Grid>
-
-                                    <TextBlock Text="Rotation Angle (°):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
-                                    <ui:TextBox Text="{Binding SelectedShape.RotationDegrees, UpdateSourceTrigger=PropertyChanged}" />
-                                </StackPanel>
-                            </ui:Card>
-
-                            <!-- Line Parameters -->
-                            <ui:Card Margin="0,0,0,12" Padding="12">
-                                <ui:Card.Style>
-                                    <Style TargetType="ui:Card">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding SelectedShape.ShapeType}" Value="Line">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ui:Card.Style>
-                                <StackPanel>
-                                    <TextBlock Text="LINE END POINT"
-                                               FontSize="10"
-                                               FontWeight="Bold"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                               Margin="0,0,0,8" />
-
-                                    <Grid Margin="0,2,0,8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="6" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="6" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-
-                                        <StackPanel Grid.Column="0">
-                                            <TextBlock Text="End X" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
-                                            <ui:TextBox Text="{Binding SelectedShape.EndX, UpdateSourceTrigger=PropertyChanged}" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2">
-                                            <TextBlock Text="End Y" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
-                                            <ui:TextBox Text="{Binding SelectedShape.EndY, UpdateSourceTrigger=PropertyChanged}" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="4">
-                                            <TextBlock Text="End Z" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
-                                            <ui:TextBox Text="{Binding SelectedShape.EndZ, UpdateSourceTrigger=PropertyChanged}" />
-                                        </StackPanel>
-                                    </Grid>
-
-                                    <Grid Margin="0,2">
-                                        <TextBlock Text="Length:" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                        <TextBlock Text="{Binding SelectedShape.Length, StringFormat='{}{0:F2} mm'}" FontWeight="SemiBold" HorizontalAlignment="Right" />
-                                    </Grid>
-                                    <Grid Margin="0,2">
-                                        <TextBlock Text="Angle:" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                        <TextBlock Text="{Binding SelectedShape.AngleDegrees, StringFormat='{}{0:F1}°'}" FontWeight="SemiBold" HorizontalAlignment="Right" />
-                                    </Grid>
-                                </StackPanel>
-                            </ui:Card>
+                                    </StackPanel>
+                                </ui:Card>
+                            </Grid>
 
                             <!-- Actions: Duplicate, Delete -->
                             <Grid Margin="0,8,0,0">

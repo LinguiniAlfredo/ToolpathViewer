@@ -1,4 +1,4 @@
-﻿using AblationStudio.Core.Models;
+using AblationStudio.Core.Models;
 
 namespace AblationStudio.Core.Shapes;
 
@@ -117,10 +117,15 @@ public sealed class RectangleShape : ToolpathShape
         return lx <= (_width * 0.5f + tolerance) && ly <= (_height * 0.5f + tolerance);
     }
 
-    public override ToolpathShape Clone() => new RectangleShape(PositionX, PositionY, PositionZ, Width, Height, RotationDegrees)
+    public override ToolpathShape Clone()
     {
-        Name = $"{Name} Copy",
-        LayerId = LayerId,
-        CutType = CutType
-    };
+        var copy = new RectangleShape(PositionX, PositionY, PositionZ, Width, Height, RotationDegrees)
+        {
+            Name = $"{Name} Copy",
+            LayerId = LayerId,
+            CutType = CutType
+        };
+        copy.Hatch.CopyFrom(Hatch);
+        return copy;
+    }
 }

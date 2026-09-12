@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using AblationStudio.App.ViewModels;
 using AblationStudio.Rendering.Camera;
 using Wpf.Ui.Appearance;
@@ -60,6 +60,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     private void UpdateViewportToggles(MainViewModel vm)
     {
         Viewport.Renderer.ToolpathRenderer.ShowCuts = vm.ShowCuts;
+        Viewport.Renderer.ToolpathRenderer.ShowHatch = vm.ShowHatch;
         Viewport.Renderer.ToolpathRenderer.ShowRapids = vm.ShowRapids;
         Viewport.Renderer.ToolpathRenderer.LineWidth = vm.LineWidth;
         Viewport.Renderer.GridRenderer.IsVisible = vm.ShowGrid;

@@ -1,6 +1,7 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using AblationStudio.Core.Models;
+using AblationStudio.Core.Shapes.Hatching;
 
 namespace AblationStudio.Core.Shapes;
 
@@ -18,6 +19,12 @@ public abstract class ToolpathShape : INotifyPropertyChanged
     public event Action<ToolpathShape>? ShapeChanged;
 
     public string Id { get; } = Guid.NewGuid().ToString("N");
+    public HatchSettings Hatch { get; } = new();
+
+    protected ToolpathShape()
+    {
+        Hatch.SettingsChanged += OnShapeModified;
+    }
 
     public string Name
     {
@@ -104,22 +111,41 @@ public abstract class ToolpathShape : INotifyPropertyChanged
             yield break;
         }
 
-        // Rapid transition from previous tool position to start of this shape
-        if (currentPosition is not null && currentPosition.Value.DistanceTo(points[0]) > 0.001f)
+        bool hasHatch = IsClosed && Hatch.IsEnabled && Hatch.Pattern != HatchPatternType.None;
+        bool keepBoundary = !hasHatch || Hatch.KeepBoundary;
+
+        ToolpathPoint? pos = currentPosition;
+
+        if (keepBoundary)
         {
-            yield return new ToolpathSegment(currentPosition.Value, points[0], SegmentType.Rapid, LayerId);
+            // Rapid transition from previous tool position to start of this shape perimeter
+            if (pos is not null && pos.Value.DistanceTo(points[0]) > 0.001f)
+            {
+                yield return new ToolpathSegment(pos.Value, points[0], SegmentType.Rapid, LayerId);
+            }
+
+            // Trace shape perimeter
+            for (int i = 0; i < points.Count - 1; i++)
+            {
+                yield return new ToolpathSegment(points[i], points[i + 1], CutType, LayerId);
+            }
+
+            // Close shape if requested
+            if (IsClosed && points.Count > 2 && points[^1].DistanceTo(points[0]) > 0.001f)
+            {
+                yield return new ToolpathSegment(points[^1], points[0], CutType, LayerId);
+            }
+
+            pos = points[0];
         }
 
-        // Trace shape perimeter
-        for (int i = 0; i < points.Count - 1; i++)
+        // Generate inner hatch infill
+        if (hasHatch)
         {
-            yield return new ToolpathSegment(points[i], points[i + 1], CutType, LayerId);
-        }
-
-        // Close shape if requested
-        if (IsClosed && points.Count > 2 && points[^1].DistanceTo(points[0]) > 0.001f)
-        {
-            yield return new ToolpathSegment(points[^1], points[0], CutType, LayerId);
+            foreach (ToolpathSegment seg in HatchEngine.GenerateHatch(this, Hatch, ref pos))
+            {
+                yield return seg;
+            }
         }
     }
 

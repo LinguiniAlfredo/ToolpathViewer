@@ -140,6 +140,7 @@ public sealed class ShapeDocument
         sb.AppendLine("SL X0.0000 Y0.0000 Z0.0000 M05");
 
         int currentLayer = firstLayer;
+        bool inHatch = false;
         Toolpath toolpath = CompileToolpath(name, includeHomeTransitions: true);
 
         foreach (ToolpathSegment seg in toolpath.Segments)
@@ -148,9 +149,21 @@ public sealed class ShapeDocument
             {
                 currentLayer = seg.LayerId;
                 sb.AppendLine($"HCH {currentLayer} 1 ;Layer {currentLayer}");
+                inHatch = false;
             }
 
-            string command = seg.Type == SegmentType.Cut ? "M03" : "M05";
+            if (seg.Type == SegmentType.Hatch && !inHatch)
+            {
+                sb.AppendLine($"HCH {currentLayer} ; Hatch");
+                inHatch = true;
+            }
+            else if (seg.Type == SegmentType.Cut && inHatch)
+            {
+                sb.AppendLine($"PFL {currentLayer} ; Profile");
+                inHatch = false;
+            }
+
+            string command = (seg.Type == SegmentType.Cut || seg.Type == SegmentType.Hatch) ? "M03" : "M05";
             sb.AppendLine($"SL X{seg.End.X:F4} Y{seg.End.Y:F4} Z{seg.End.Z:F4} {command}");
         }
 

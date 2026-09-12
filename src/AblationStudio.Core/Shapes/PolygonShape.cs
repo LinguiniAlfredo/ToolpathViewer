@@ -1,4 +1,4 @@
-﻿using AblationStudio.Core.Models;
+using AblationStudio.Core.Models;
 
 namespace AblationStudio.Core.Shapes;
 
@@ -98,10 +98,15 @@ public sealed class PolygonShape : ToolpathShape
         return dist <= (_radius + tolerance);
     }
 
-    public override ToolpathShape Clone() => new PolygonShape(PositionX, PositionY, PositionZ, Radius, Sides, RotationDegrees)
+    public override ToolpathShape Clone()
     {
-        Name = $"{Name} Copy",
-        LayerId = LayerId,
-        CutType = CutType
-    };
+        var copy = new PolygonShape(PositionX, PositionY, PositionZ, Radius, Sides, RotationDegrees)
+        {
+            Name = $"{Name} Copy",
+            LayerId = LayerId,
+            CutType = CutType
+        };
+        copy.Hatch.CopyFrom(Hatch);
+        return copy;
+    }
 }

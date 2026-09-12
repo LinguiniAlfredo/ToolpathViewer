@@ -1,4 +1,4 @@
-﻿using AblationStudio.Core.Models;
+using AblationStudio.Core.Models;
 using AblationStudio.Core.Simulation;
 using Xunit;
 
@@ -163,5 +163,39 @@ public sealed class SimulationTests
         Assert.Equal(30f, simulator.CurrentDistance, precision: 3);
         Assert.Equal(new ToolpathPoint(20f, 10f, 0f), simulator.CurrentPosition);
         Assert.Equal(SegmentType.Rapid, simulator.CurrentSegmentType);
+    }
+
+    [Fact]
+    public void Update_TraversesHatchSegment_SetsSegmentTypeToHatch()
+    {
+        var seg1 = new ToolpathSegment(new ToolpathPoint(0f, 0f, 0f), new ToolpathPoint(10f, 0f, 0f), SegmentType.Cut);
+        var seg2 = new ToolpathSegment(new ToolpathPoint(10f, 0f, 0f), new ToolpathPoint(10f, 10f, 0f), SegmentType.Hatch);
+        var seg3 = new ToolpathSegment(new ToolpathPoint(10f, 10f, 0f), new ToolpathPoint(0f, 0f, 0f), SegmentType.Rapid);
+        var toolpath = new Toolpath("test.h", "test.h", [seg1, seg2, seg3]);
+        var simulator = new ToolpathSimulator(toolpath)
+        {
+            Feedrate = 10f
+        };
+
+        simulator.Play();
+
+        // 0.5s -> 5mm into seg1 (Cut / M03 Profile)
+        simulator.Update(0.5f);
+        Assert.Equal(SegmentType.Cut, simulator.CurrentSegmentType);
+
+        // 1.0s more -> 15mm total -> 5mm into seg2 (Hatch / M03 Infill)
+        simulator.Update(1.0f);
+        Assert.Equal(SegmentType.Hatch, simulator.CurrentSegmentType);
+        Assert.Equal(new ToolpathPoint(10f, 5f, 0f), simulator.CurrentPosition);
+    }
+
+    [Fact]
+    public void ToolIndicatorRenderer_Colors_DistinguishesHatchFromRapidAndCut()
+    {
+        // Verify that ToolIndicatorRenderer defines distinct Cut, Hatch, and Rapid colors
+        Assert.NotEqual(AblationStudio.Rendering.Renderers.ToolIndicatorRenderer.HatchColor,
+                        AblationStudio.Rendering.Renderers.ToolIndicatorRenderer.RapidColor);
+        Assert.NotEqual(AblationStudio.Rendering.Renderers.ToolIndicatorRenderer.HatchColor,
+                        AblationStudio.Rendering.Renderers.ToolIndicatorRenderer.CutColor);
     }
 }
