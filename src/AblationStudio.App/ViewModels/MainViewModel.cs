@@ -412,7 +412,6 @@ public sealed class MainViewModel : ObservableObject
     public ICommand OpenProjectCommand { get; }
     public ICommand ExportMachineFileCommand { get; }
     public ICommand ImportMachineFileCommand { get; }
-    public ICommand ReloadCommand { get; }
     public ICommand FitViewCommand { get; }
     public ICommand SetPresetCommand { get; }
     public ICommand ToggleThemeCommand { get; }
@@ -439,7 +438,6 @@ public sealed class MainViewModel : ObservableObject
         ImportMachineFileCommand = new RelayCommand(async () => await ExecuteImportMachineFileAsync());
         ExportToolpathCommand = ExportMachineFileCommand;
 
-        ReloadCommand = new RelayCommand(async () => await ExecuteReloadAsync(), () => !string.IsNullOrEmpty(CurrentFilePath) || !string.IsNullOrEmpty(CurrentProjectPath));
         FitViewCommand = new RelayCommand(() => FitViewRequested?.Invoke(), () => HasLoadedFile);
         SetPresetCommand = new RelayCommand<string>(ExecuteSetPreset);
         ToggleThemeCommand = new RelayCommand(() => IsDarkTheme = !IsDarkTheme);
@@ -795,18 +793,6 @@ public sealed class MainViewModel : ObservableObject
     public async Task LoadFileAsync(string filePath)
     {
         await OpenFileOrProjectAsync(filePath);
-    }
-
-    private async Task ExecuteReloadAsync()
-    {
-        if (!string.IsNullOrEmpty(CurrentProjectPath) && File.Exists(CurrentProjectPath))
-        {
-            await LoadProjectFileAsync(CurrentProjectPath);
-        }
-        else if (!string.IsNullOrEmpty(CurrentFilePath) && File.Exists(CurrentFilePath))
-        {
-            await ImportMachineFileAsync(CurrentFilePath);
-        }
     }
 
     private void ExecuteSetPreset(string? presetName)

@@ -27,8 +27,6 @@
         <KeyBinding Key="S" Modifiers="Control+Shift" Command="{Binding SaveProjectAsCommand}" />
         <KeyBinding Key="E" Modifiers="Control" Command="{Binding ExportMachineFileCommand}" />
         <KeyBinding Key="I" Modifiers="Control" Command="{Binding ImportMachineFileCommand}" />
-        <KeyBinding Key="R" Modifiers="Control" Command="{Binding ReloadCommand}" />
-        <KeyBinding Key="F5" Command="{Binding ReloadCommand}" />
         <KeyBinding Key="F" Modifiers="Control" Command="{Binding FitViewCommand}" />
         <KeyBinding Key="D" Modifiers="Control" Command="{Binding DuplicateSelectedShapeCommand}" />
         <KeyBinding Key="V" Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ShapeToolType.Select}" />
@@ -92,13 +90,6 @@
                               Command="{Binding SaveProjectAsCommand}">
                         <MenuItem.Icon>
                             <ui:SymbolIcon Symbol="SaveCopy24" />
-                        </MenuItem.Icon>
-                    </MenuItem>
-                    <MenuItem Header="_Reload"
-                              InputGestureText="Ctrl+R"
-                              Command="{Binding ReloadCommand}">
-                        <MenuItem.Icon>
-                            <ui:SymbolIcon Symbol="ArrowSync24" />
                         </MenuItem.Icon>
                     </MenuItem>
                     <Separator />
@@ -338,21 +329,10 @@
                 <ui:Button Appearance="Secondary"
                            Command="{Binding ImportMachineFileCommand}"
                            ToolTip="Import Machine File (*.h, *.txt) [Ctrl+I]"
-                           Margin="0,0,6,0">
+                           Margin="0,0,12,0">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="ArrowImport24" Margin="0,0,6,0" />
                         <TextBlock Text="Import" />
-                    </StackPanel>
-                </ui:Button>
-
-                <!-- Reload Button -->
-                <ui:Button Appearance="Secondary"
-                           Command="{Binding ReloadCommand}"
-                           ToolTip="Reload current project or file [Ctrl+R / F5]"
-                           Margin="0,0,12,0">
-                    <StackPanel Orientation="Horizontal">
-                        <ui:SymbolIcon Symbol="ArrowSync24" Margin="0,0,6,0" />
-                        <TextBlock Text="Reload" />
                     </StackPanel>
                 </ui:Button>
 
@@ -1249,18 +1229,30 @@
                                                     Value="{Binding SelectedShape.Hatch.Stepover, Mode=TwoWay}"
                                                     Margin="0,2,0,8" />
 
-                                            <!-- Angle (Degrees) -->
-                                            <Grid Margin="0,2">
-                                                <TextBlock Text="Angle / Rotation (°):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                                <TextBlock Text="{Binding SelectedShape.Hatch.AngleDegrees, StringFormat='{}{0:F0}°'}"
-                                                           FontWeight="SemiBold"
-                                                           HorizontalAlignment="Right"
-                                                           FontSize="11" />
-                                            </Grid>
-                                            <Slider Minimum="0"
-                                                    Maximum="360"
-                                                    Value="{Binding SelectedShape.Hatch.AngleDegrees, Mode=TwoWay}"
-                                                    Margin="0,2,0,8" />
+                                            <!-- Angle (Degrees) - Hidden for Follow Profile -->
+                                            <StackPanel>
+                                                <StackPanel.Style>
+                                                    <Style TargetType="StackPanel">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding SelectedShape.Hatch.Pattern}" Value="{x:Static shapes:HatchPatternType.FollowProfile}">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </StackPanel.Style>
+                                                <Grid Margin="0,2">
+                                                    <TextBlock Text="Angle / Rotation (°):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                    <TextBlock Text="{Binding SelectedShape.Hatch.AngleDegrees, StringFormat='{}{0:F0}°'}"
+                                                               FontWeight="SemiBold"
+                                                               HorizontalAlignment="Right"
+                                                               FontSize="11" />
+                                                </Grid>
+                                                <Slider Minimum="0"
+                                                        Maximum="360"
+                                                        Value="{Binding SelectedShape.Hatch.AngleDegrees, Mode=TwoWay}"
+                                                        Margin="0,2,0,8" />
+                                            </StackPanel>
 
                                             <!-- ZigZag Specific Settings -->
                                             <StackPanel>
