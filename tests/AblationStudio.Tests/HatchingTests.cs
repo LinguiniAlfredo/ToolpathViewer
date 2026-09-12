@@ -496,6 +496,19 @@ public sealed class HatchingTests
         Assert.StartsWith("HCH 1", sectionHeaders[1]);
         Assert.StartsWith("PFL 1", sectionHeaders[2]);
         Assert.StartsWith("HCH 1", sectionHeaders[3]);
+
+        // Verify that the immediate first line inside each section is the rapid positioning move (M05)
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i].Trim();
+            if (line.StartsWith("PFL 1") || line.StartsWith("HCH 1"))
+            {
+                Assert.True(i + 1 < lines.Length, $"Expected a motion line after {line}");
+                string nextLine = lines[i + 1].Trim();
+                Assert.True(nextLine.StartsWith("SL") && nextLine.EndsWith("M05"),
+                    $"Expected first line inside {line} to be a rapid move (M05), but got: {nextLine}");
+            }
+        }
     }
 
     [Fact]

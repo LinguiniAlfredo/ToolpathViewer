@@ -161,31 +161,62 @@ public sealed class ShapeDocument
         SegmentType? activeType = null;
         Toolpath toolpath = CompileToolpath(name, includeHomeTransitions: true);
 
-        foreach (ToolpathSegment seg in toolpath.Segments)
+        for (int i = 0; i < toolpath.Segments.Count; i++)
         {
-            if (seg.Type == SegmentType.Cut)
+            ToolpathSegment seg = toolpath.Segments[i];
+
+            // Determine target operation type and layer
+            SegmentType targetType;
+            int targetLayer;
+
+            if (seg.Type == SegmentType.Rapid)
             {
-                if (activeType != SegmentType.Cut || seg.LayerId != currentLayer)
+                // Look ahead to find the next cutting segment (Cut or Hatch) that this rapid positions for
+                int nextCutIdx = -1;
+                for (int j = i + 1; j < toolpath.Segments.Count; j++)
                 {
-                    currentLayer = seg.LayerId;
+                    if (toolpath.Segments[j].Type != SegmentType.Rapid)
+                    {
+                        nextCutIdx = j;
+                        break;
+                    }
+                }
+
+                if (nextCutIdx >= 0)
+                {
+                    targetType = toolpath.Segments[nextCutIdx].Type;
+                    targetLayer = toolpath.Segments[nextCutIdx].LayerId;
+                }
+                else
+                {
+                    // Trailing rapid move (e.g. return to origin) remains in active section
+                    targetType = activeType ?? SegmentType.Rapid;
+                    targetLayer = currentLayer >= 0 ? currentLayer : seg.LayerId;
+                }
+            }
+            else
+            {
+                targetType = seg.Type;
+                targetLayer = seg.LayerId;
+            }
+
+            // Emit section directive when entering a new section or layer
+            if (targetType == SegmentType.Cut)
+            {
+                if (activeType != SegmentType.Cut || currentLayer != targetLayer)
+                {
+                    currentLayer = targetLayer;
                     sb.AppendLine($"PFL {currentLayer} ; Profile");
                     activeType = SegmentType.Cut;
                 }
             }
-            else if (seg.Type == SegmentType.Hatch)
+            else if (targetType == SegmentType.Hatch)
             {
-                if (activeType != SegmentType.Hatch || seg.LayerId != currentLayer)
+                if (activeType != SegmentType.Hatch || currentLayer != targetLayer)
                 {
-                    currentLayer = seg.LayerId;
+                    currentLayer = targetLayer;
                     sb.AppendLine($"HCH {currentLayer} ; Hatch");
                     activeType = SegmentType.Hatch;
-                }
-            }
-            else if (seg.Type == SegmentType.Rapid)
-            {
-                if (seg.LayerId != currentLayer)
-                {
-                    currentLayer = seg.LayerId;
                 }
             }
 

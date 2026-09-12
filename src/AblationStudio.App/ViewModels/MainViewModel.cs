@@ -1028,38 +1028,59 @@ public sealed class MainViewModel : ObservableObject
         var origin = new ToolpathPoint(0f, 0f, 0f);
         ToolpathPoint firstStart = toolpath.Segments[0].Start;
 
-        if (firstStart.DistanceTo(origin) > 0.001f)
-        {
-            sb.AppendLine($"SL X{firstStart.X:F4} Y{firstStart.Y:F4} Z{firstStart.Z:F4} M05");
-        }
-
         int currentLayer = -1;
         SegmentType? activeType = null;
-        foreach (ToolpathSegment seg in toolpath.Segments)
+        for (int i = 0; i < toolpath.Segments.Count; i++)
         {
-            if (seg.Type == SegmentType.Cut)
+            ToolpathSegment seg = toolpath.Segments[i];
+            SegmentType targetType;
+            int targetLayer;
+
+            if (seg.Type == SegmentType.Rapid)
             {
-                if (activeType != SegmentType.Cut || seg.LayerId != currentLayer)
+                int nextCutIdx = -1;
+                for (int j = i + 1; j < toolpath.Segments.Count; j++)
                 {
-                    currentLayer = seg.LayerId;
+                    if (toolpath.Segments[j].Type != SegmentType.Rapid)
+                    {
+                        nextCutIdx = j;
+                        break;
+                    }
+                }
+
+                if (nextCutIdx >= 0)
+                {
+                    targetType = toolpath.Segments[nextCutIdx].Type;
+                    targetLayer = toolpath.Segments[nextCutIdx].LayerId;
+                }
+                else
+                {
+                    targetType = activeType ?? SegmentType.Rapid;
+                    targetLayer = currentLayer >= 0 ? currentLayer : seg.LayerId;
+                }
+            }
+            else
+            {
+                targetType = seg.Type;
+                targetLayer = seg.LayerId;
+            }
+
+            if (targetType == SegmentType.Cut)
+            {
+                if (activeType != SegmentType.Cut || currentLayer != targetLayer)
+                {
+                    currentLayer = targetLayer;
                     sb.AppendLine($"PFL {currentLayer} ; Profile");
                     activeType = SegmentType.Cut;
                 }
             }
-            else if (seg.Type == SegmentType.Hatch)
+            else if (targetType == SegmentType.Hatch)
             {
-                if (activeType != SegmentType.Hatch || seg.LayerId != currentLayer)
+                if (activeType != SegmentType.Hatch || currentLayer != targetLayer)
                 {
-                    currentLayer = seg.LayerId;
+                    currentLayer = targetLayer;
                     sb.AppendLine($"HCH {currentLayer} ; Hatch");
                     activeType = SegmentType.Hatch;
-                }
-            }
-            else if (seg.Type == SegmentType.Rapid)
-            {
-                if (seg.LayerId != currentLayer)
-                {
-                    currentLayer = seg.LayerId;
                 }
             }
 
