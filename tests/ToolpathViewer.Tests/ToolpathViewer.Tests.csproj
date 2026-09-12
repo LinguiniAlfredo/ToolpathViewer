@@ -1,13 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
@@ -16,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\ToolpathViewer.Core\ToolpathViewer.Core.csproj" />
+    <ProjectReference Include="..\..\src\ToolpathViewer.Rendering\ToolpathViewer.Rendering.csproj" />
   </ItemGroup>
 
   <ItemGroup>

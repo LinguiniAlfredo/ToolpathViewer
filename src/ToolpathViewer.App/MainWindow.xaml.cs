@@ -1,4 +1,3 @@
-using System.IO;
 using System.Windows;
 using ToolpathViewer.App.ViewModels;
 using ToolpathViewer.Rendering.Camera;
@@ -23,21 +22,31 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             vm.FitViewRequested += OnFitViewRequested;
             vm.PresetRequested += OnPresetRequested;
             vm.ThemeChangeRequested += OnThemeChangeRequested;
+            vm.SimulationUpdated += (point, type, extent) =>
+            {
+                Viewport.SetSimulationIndicator(point, type, extent);
+            };
+
+            Viewport.ShapeDocument = vm.CustomShapes;
+            Viewport.CurrentTool = vm.ActiveTool;
+            Viewport.ToolSwitched += tool => vm.ActiveTool = tool;
+            vm.PropertyChanged += (s, args) =>
+            {
+                if (args.PropertyName == nameof(MainViewModel.ActiveTool))
+                {
+                    Viewport.CurrentTool = vm.ActiveTool;
+                }
+            };
 
             UpdateViewportToggles(vm);
-
-            // Auto-load example Box4mm.h if available
-            string defaultSample = @"c:\Users\m_del\Source\vibe_test\example_toolpaths\Box4mm.h";
-            if (File.Exists(defaultSample))
-            {
-                _ = vm.LoadFileAsync(defaultSample);
-            }
+            Dispatcher.InvokeAsync(() => Viewport.RequestRedraw(), System.Windows.Threading.DispatcherPriority.Loaded);
+            Dispatcher.InvokeAsync(() => Viewport.RequestRedraw(), System.Windows.Threading.DispatcherPriority.Render);
         }
     }
 
-    private void OnToolpathLoaded(ToolpathViewer.Core.Models.Toolpath toolpath)
+    private void OnToolpathLoaded(ToolpathViewer.Core.Models.Toolpath toolpath, bool autoFit)
     {
-        Viewport.LoadToolpath(toolpath);
+        Viewport.LoadToolpath(toolpath, autoFit);
     }
 
     private void OnRequestRender()
@@ -54,7 +63,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         Viewport.Renderer.ToolpathRenderer.ShowRapids = vm.ShowRapids;
         Viewport.Renderer.ToolpathRenderer.LineWidth = vm.LineWidth;
         Viewport.Renderer.GridRenderer.IsVisible = vm.ShowGrid;
-        Viewport.Renderer.AxesRenderer.IsVisible = vm.ShowAxes;
+        Viewport.Renderer.OrientationGizmo.IsVisible = vm.ShowAxes;
         Viewport.Renderer.BoundingBoxRenderer.IsVisible = vm.ShowBoundingBox;
         Viewport.RequestRedraw();
     }

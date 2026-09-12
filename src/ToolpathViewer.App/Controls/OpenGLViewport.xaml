@@ -22,36 +22,77 @@
                          Render="GlSurface_OnRender"
                          Focusable="True" />
 
-        <!-- Floating HUD Overlay with Navigation Hints (IsHitTestVisible=False to never block mouse) -->
-        <Border HorizontalAlignment="Left"
-                VerticalAlignment="Bottom"
-                Margin="16"
-                Background="#9018181C"
-                CornerRadius="8"
-                BorderBrush="#30FFFFFF"
-                BorderThickness="1"
-                Padding="12,8"
-                IsHitTestVisible="False">
-            <StackPanel Orientation="Vertical">
-                <TextBlock Text="3D CAMERA CONTROLS"
-                           FontSize="10"
-                           FontWeight="SemiBold"
-                           Foreground="#80FFFFFF"
-                           Margin="0,0,0,4" />
-                <StackPanel Orientation="Horizontal" Margin="0,2">
-                    <TextBlock Text="Orbit: " FontWeight="SemiBold" Foreground="#CCD0D8" FontSize="11" />
-                    <TextBlock Text="Left Click + Drag" Foreground="#99A0B0" FontSize="11" />
+        <!-- Floating HUD Overlay with Navigation Hints and 3D View Legend (IsHitTestVisible=False to never block mouse) -->
+        <StackPanel Orientation="Horizontal"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Bottom"
+                    Margin="16"
+                    IsHitTestVisible="False">
+            <!-- 3D Camera Controls -->
+            <Border Background="#9018181C"
+                    CornerRadius="8"
+                    BorderBrush="#30FFFFFF"
+                    BorderThickness="1"
+                    Padding="12,8"
+                    Margin="0,0,10,0"
+                    VerticalAlignment="Bottom">
+                <StackPanel Orientation="Vertical">
+                    <TextBlock Text="3D CAMERA CONTROLS"
+                               FontSize="10"
+                               FontWeight="SemiBold"
+                               Foreground="#80FFFFFF"
+                               Margin="0,0,0,4" />
+                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                        <TextBlock Text="Orbit: " FontWeight="SemiBold" Foreground="#CCD0D8" FontSize="11" />
+                        <TextBlock Text="Left Click + Drag" Foreground="#99A0B0" FontSize="11" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                        <TextBlock Text="Pan: " FontWeight="SemiBold" Foreground="#CCD0D8" FontSize="11" />
+                        <TextBlock Text="Right / Middle Click + Drag" Foreground="#99A0B0" FontSize="11" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                        <TextBlock Text="Zoom: " FontWeight="SemiBold" Foreground="#CCD0D8" FontSize="11" />
+                        <TextBlock Text="Mouse Scroll Wheel" Foreground="#99A0B0" FontSize="11" />
+                    </StackPanel>
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="0,2">
-                    <TextBlock Text="Pan: " FontWeight="SemiBold" Foreground="#CCD0D8" FontSize="11" />
-                    <TextBlock Text="Right / Middle Click + Drag" Foreground="#99A0B0" FontSize="11" />
+            </Border>
+
+            <!-- 3D View Legend -->
+            <Border Background="#9018181C"
+                    CornerRadius="8"
+                    BorderBrush="#30FFFFFF"
+                    BorderThickness="1"
+                    Padding="12,8"
+                    VerticalAlignment="Bottom">
+                <StackPanel Orientation="Vertical">
+                    <TextBlock Text="3D VIEW LEGEND"
+                               FontSize="10"
+                               FontWeight="SemiBold"
+                               Foreground="#80FFFFFF"
+                               Margin="0,0,0,4" />
+                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                        <Border Width="12" Height="3" CornerRadius="1.5" Background="#00D2FF" Margin="0,0,8,0" VerticalAlignment="Center" />
+                        <TextBlock Text="Cutting Line " FontWeight="SemiBold" Foreground="#CCD0D8" FontSize="11" />
+                        <TextBlock Text="(M03 - Laser ON)" Foreground="#99A0B0" FontSize="11" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                        <Border Width="12" Height="2" CornerRadius="1" Background="#FFAA00" Margin="0,0,8,0" VerticalAlignment="Center" />
+                        <TextBlock Text="Rapid Move " FontWeight="SemiBold" Foreground="#CCD0D8" FontSize="11" />
+                        <TextBlock Text="(M05 - Laser OFF)" Foreground="#99A0B0" FontSize="11" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                        <Border Width="8" Height="8" CornerRadius="4" Background="#1FE633" Margin="2,0,10,0" VerticalAlignment="Center" />
+                        <TextBlock Text="Start Position " FontWeight="SemiBold" Foreground="#CCD0D8" FontSize="11" />
+                        <TextBlock Text="(First Point)" Foreground="#99A0B0" FontSize="11" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                        <Border Width="8" Height="8" CornerRadius="4" Background="#FF4040" Margin="2,0,10,0" VerticalAlignment="Center" />
+                        <TextBlock Text="End Position " FontWeight="SemiBold" Foreground="#CCD0D8" FontSize="11" />
+                        <TextBlock Text="(Last Point)" Foreground="#99A0B0" FontSize="11" />
+                    </StackPanel>
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="0,2">
-                    <TextBlock Text="Zoom: " FontWeight="SemiBold" Foreground="#CCD0D8" FontSize="11" />
-                    <TextBlock Text="Mouse Scroll Wheel" Foreground="#99A0B0" FontSize="11" />
-                </StackPanel>
-            </StackPanel>
-        </Border>
+            </Border>
+        </StackPanel>
 
         <!-- Loading indicator overlay -->
         <Grid x:Name="LoadingOverlay"

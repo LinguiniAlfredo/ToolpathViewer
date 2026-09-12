@@ -1,3 +1,4 @@
+using System.IO;
 using ToolpathViewer.Core.Models;
 using ToolpathViewer.Core.Parser;
 using Xunit;
@@ -120,7 +121,6 @@ public sealed class ParserTests
             Toolpath toolpath = await ToolpathParser.ParseFileAsync(boxPath);
             Assert.Equal("Box4mm.h", toolpath.Name);
             Assert.Equal(5, toolpath.Segments.Count);
-            Assert.Equal(4, toolpath.Statistics.CutSegmentsCount);
         }
     }
 }

@@ -15,11 +15,11 @@ public sealed class Camera3D
 {
     private const float MinDistance = 0.01f;
     private const float MaxDistance = 10000f;
-    private const float MinPitch = -89.9f;
-    private const float MaxPitch = 89.9f;
+    public const float MinPitch = -89.9f;
+    public const float MaxPitch = 89.9f;
 
     public Vector3 Target { get; set; } = Vector3.Zero;
-    public float Distance { get; set; } = 15f;
+    public float Distance { get; set; } = 25f;
     public float Pitch { get; set; } = 35.264f; // Default Isometric
     public float Yaw { get; set; } = 45.0f;
     public float FieldOfViewDegrees { get; set; } = 45f;
@@ -28,23 +28,13 @@ public sealed class Camera3D
     public float FarPlane { get; set; } = 10000f;
 
     public Vector3 Position => CalculatePosition();
+    public Vector3 Right => CalculateRight();
+    public Vector3 Up => CalculateUp();
 
     public Matrix4 GetViewMatrix()
     {
         Vector3 eye = Position;
-        Vector3 up = Vector3.UnitZ;
-
-        Vector3 dir = Target - eye;
-        if (dir.LengthSquared > 1e-6f)
-        {
-            dir = Vector3.Normalize(dir);
-            // If viewing straight down or straight up, use Y as the up vector to prevent gimbal lock / degenerate lookAt
-            if (MathF.Abs(Vector3.Dot(dir, Vector3.UnitZ)) > 0.99f)
-            {
-                up = dir.Z < 0f ? Vector3.UnitY : -Vector3.UnitY;
-            }
-        }
-
+        Vector3 up = CalculateUp();
         return Matrix4.LookAt(eye, Target, up);
     }
 
@@ -55,6 +45,52 @@ public sealed class Camera3D
     }
 
     public Matrix4 GetViewProjectionMatrix() => GetViewMatrix() * GetProjectionMatrix();
+
+    public (Vector3 RayOrigin, Vector3 RayDirection) ScreenPointToRay(
+        float screenX, float screenY, int viewportWidth, int viewportHeight)
+    {
+        if (viewportWidth <= 0 || viewportHeight <= 0)
+        {
+            return (Position, -Vector3.UnitZ);
+        }
+
+        float ndcX = (2.0f * screenX) / viewportWidth - 1.0f;
+        float ndcY = 1.0f - (2.0f * screenY) / viewportHeight;
+
+        Matrix4 invVp = Matrix4.Invert(GetViewProjectionMatrix());
+
+        Vector4 nearWorld = Vector4.TransformRow(new Vector4(ndcX, ndcY, -1.0f, 1.0f), invVp);
+        Vector4 farWorld = Vector4.TransformRow(new Vector4(ndcX, ndcY, 1.0f, 1.0f), invVp);
+
+        Vector3 nearPoint = nearWorld.Xyz / nearWorld.W;
+        Vector3 farPoint = farWorld.Xyz / farWorld.W;
+
+        Vector3 rayOrigin = nearPoint;
+        Vector3 rayDir = Vector3.Normalize(farPoint - nearPoint);
+
+        return (rayOrigin, rayDir);
+    }
+
+    public bool IntersectRayPlaneZ(
+        Vector3 rayOrigin, Vector3 rayDir, float planeZ, out Vector3 hitPoint)
+    {
+        if (MathF.Abs(rayDir.Z) < 1e-6f)
+        {
+            hitPoint = Vector3.Zero;
+            return false;
+        }
+
+        float t = (planeZ - rayOrigin.Z) / rayDir.Z;
+        if (t < 0f)
+        {
+            hitPoint = Vector3.Zero;
+            return false;
+        }
+
+        hitPoint = rayOrigin + t * rayDir;
+        hitPoint.Z = planeZ;
+        return true;
+    }
 
     public void Orbit(float deltaYawDegrees, float deltaPitchDegrees)
     {
@@ -74,32 +110,8 @@ public sealed class Camera3D
             return;
         }
 
-        Vector3 forward = Target - Position;
-        if (forward.LengthSquared < 1e-6f)
-        {
-            return;
-        }
-        forward = Vector3.Normalize(forward);
-
-        Vector3 right = Vector3.Cross(forward, Vector3.UnitZ);
-        if (right.LengthSquared < 1e-6f)
-        {
-            right = Vector3.Cross(forward, Vector3.UnitY);
-            if (right.LengthSquared < 1e-6f)
-            {
-                right = Vector3.UnitX;
-            }
-            else
-            {
-                right = Vector3.Normalize(right);
-            }
-        }
-        else
-        {
-            right = Vector3.Normalize(right);
-        }
-
-        Vector3 up = Vector3.Normalize(Vector3.Cross(right, forward));
+        Vector3 right = CalculateRight();
+        Vector3 up = CalculateUp();
 
         float fovRad = MathHelper.DegreesToRadians(FieldOfViewDegrees);
         float worldHeight = 2.0f * Distance * MathF.Tan(fovRad * 0.5f);
@@ -123,7 +135,9 @@ public sealed class Camera3D
         if (bbox.IsEmpty)
         {
             Target = Vector3.Zero;
-            Distance = 15f;
+            Distance = 25f;
+            Pitch = 35.264f;
+            Yaw = 45.0f;
             return;
         }
 
@@ -143,30 +157,74 @@ public sealed class Camera3D
         FarPlane = Math.Max(100f, Distance * 10f);
     }
 
+    public static (float Yaw, float Pitch) GetPresetAngles(ViewPreset preset) => preset switch
+    {
+        ViewPreset.Isometric => (45f, 35.264f),
+        ViewPreset.Top => (0f, 89.9f),
+        ViewPreset.Front => (0f, 0f),
+        ViewPreset.Right => (90f, 0f),
+        _ => (45f, 35.264f)
+    };
+
+    public static float ShortestAngleDistance(float fromDegrees, float toDegrees)
+    {
+        float diff = (toDegrees - fromDegrees) % 360f;
+        if (diff > 180f)
+        {
+            diff -= 360f;
+        }
+        else if (diff < -180f)
+        {
+            diff += 360f;
+        }
+
+        return diff;
+    }
+
+    public static float InterpolateAngle(float fromDegrees, float toDegrees, float t)
+    {
+        float diff = ShortestAngleDistance(fromDegrees, toDegrees);
+        float result = (fromDegrees + diff * t) % 360f;
+        if (result < 0f)
+        {
+            result += 360f;
+        }
+
+        return result;
+    }
+
+    public static float EaseInOutCubic(float t)
+    {
+        float clamped = Math.Clamp(t, 0f, 1f);
+        return clamped < 0.5f
+            ? 4f * clamped * clamped * clamped
+            : 1f - MathF.Pow(-2f * clamped + 2f, 3f) * 0.5f;
+    }
+
     public void SetPreset(ViewPreset preset)
     {
-        switch (preset)
-        {
-            case ViewPreset.Isometric:
-                Yaw = 45f;
-                Pitch = 35.264f;
-                break;
+        var (yaw, pitch) = GetPresetAngles(preset);
+        Yaw = yaw;
+        Pitch = pitch;
+    }
 
-            case ViewPreset.Top:
-                Yaw = 0f;
-                Pitch = 89.9f;
-                break;
+    public Vector3 CalculateRight()
+    {
+        float yawRad = MathHelper.DegreesToRadians(Yaw);
+        return new Vector3(MathF.Cos(yawRad), MathF.Sin(yawRad), 0f);
+    }
 
-            case ViewPreset.Front:
-                Yaw = 0f;
-                Pitch = 0f;
-                break;
+    public Vector3 CalculateUp()
+    {
+        float pitchRad = MathHelper.DegreesToRadians(Pitch);
+        float yawRad = MathHelper.DegreesToRadians(Yaw);
 
-            case ViewPreset.Right:
-                Yaw = 90f;
-                Pitch = 0f;
-                break;
-        }
+        float cosPitch = MathF.Cos(pitchRad);
+        float sinPitch = MathF.Sin(pitchRad);
+        float cosYaw = MathF.Cos(yawRad);
+        float sinYaw = MathF.Sin(yawRad);
+
+        return new Vector3(-sinPitch * sinYaw, sinPitch * cosYaw, cosPitch);
     }
 
     private Vector3 CalculatePosition()
