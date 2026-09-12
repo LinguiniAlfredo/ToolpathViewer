@@ -223,6 +223,7 @@ public static class ZigZagHatchGenerator
     /// Generates a scanline ordering using 1D Furthest Point Sampling and a decaying thermal potential field.
     /// At each step, places the next cut in the coldest available region on the workpiece, maximizing distance
     /// to all recently marked lines to prevent localized heating zones.
+    /// Uses an O(N^2) thermal recurrence with precomputed distance kernel for high-throughput performance.
     /// </summary>
     public static List<int> GenerateThermalDispersionSequence(int totalLines)
     {
@@ -242,50 +243,77 @@ public static class ZigZagHatchGenerator
         }
 
         var sequence = new List<int>(totalLines);
-        var remaining = new HashSet<int>(Enumerable.Range(0, totalLines));
+        const float coolingFactor = 0.85f;
+
+        // Precompute spatial heat kernel: kernel[d] = 1.0f / (d * d + 0.1f)
+        // Eliminates repeated division and square calculations in the inner loop
+        float[] kernel = new float[totalLines];
+        for (int d = 0; d < totalLines; d++)
+        {
+            kernel[d] = 1.0f / (d * (float)d + 0.1f);
+        }
 
         // 1. Initial boundaries: mark extremes first to establish global boundary
         sequence.Add(0);
-        remaining.Remove(0);
-
         sequence.Add(totalLines - 1);
-        remaining.Remove(totalLines - 1);
 
-        // Thermal cooling factor per stroke (~15% cooling per stroke)
-        const float coolingFactor = 0.85f;
+        int remainingCount = totalLines - 2;
+        int[] remaining = new int[remainingCount];
+        for (int i = 0; i < remainingCount; i++)
+        {
+            remaining[i] = i + 1;
+        }
+
+        // Track accumulated thermal energy field for each candidate
+        // Step 0 was line 0 (decayed by coolingFactor^1 at step 2)
+        // Step 1 was line (totalLines - 1) (decayed by coolingFactor^0 at step 2)
+        float[] heat = new float[totalLines];
+        int lastLine = totalLines - 1;
+        for (int i = 0; i < remainingCount; i++)
+        {
+            int c = remaining[i];
+            heat[c] = coolingFactor * kernel[c] + kernel[lastLine - c];
+        }
 
         // 2. Greedily pick candidate with minimum residual thermal energy from all previous lines
-        while (remaining.Count > 0)
+        while (remainingCount > 0)
         {
-            int bestCandidate = -1;
-            float minHeat = float.MaxValue;
-            int currentStep = sequence.Count;
+            int bestIdx = 0;
+            int bestCandidate = remaining[0];
+            float minHeat = heat[bestCandidate];
 
-            foreach (int candidate in remaining)
+            for (int i = 1; i < remainingCount; i++)
             {
-                float heat = 0f;
-
-                for (int j = 0; j < sequence.Count; j++)
+                int candidate = remaining[i];
+                float h = heat[candidate];
+                if (h < minHeat || (MathF.Abs(h - minHeat) < 1e-9f && candidate < bestCandidate))
                 {
-                    int markedLine = sequence[j];
-                    int elapsedSteps = currentStep - 1 - j;
-                    float timeDecay = MathF.Pow(coolingFactor, elapsedSteps);
-
-                    int distLines = Math.Abs(candidate - markedLine);
-                    float distSq = distLines * distLines;
-
-                    heat += timeDecay / (distSq + 0.1f);
-                }
-
-                if (heat < minHeat)
-                {
-                    minHeat = heat;
+                    minHeat = h;
                     bestCandidate = candidate;
+                    bestIdx = i;
                 }
             }
 
             sequence.Add(bestCandidate);
-            remaining.Remove(bestCandidate);
+
+            // Swap-remove chosen candidate in O(1)
+            remaining[bestIdx] = remaining[remainingCount - 1];
+            remainingCount--;
+
+            if (remainingCount == 0)
+            {
+                break;
+            }
+
+            // Update residual heat for all remaining candidates in O(remainingCount):
+            // Each existing line's thermal contribution decays by coolingFactor,
+            // plus the newly added line's heat impulse kernel[|c - bestCandidate|].
+            for (int i = 0; i < remainingCount; i++)
+            {
+                int candidate = remaining[i];
+                int dist = Math.Abs(candidate - bestCandidate);
+                heat[candidate] = heat[candidate] * coolingFactor + kernel[dist];
+            }
         }
 
         return sequence;

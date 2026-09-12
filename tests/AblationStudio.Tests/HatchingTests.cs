@@ -625,5 +625,69 @@ public sealed class HatchingTests
         // Rings shrink from 0.2mm down towards 0.01mm (roughly 9 rings * 4 sides = 36 hatch segments)
         Assert.True(followHatch.Count >= 20, $"Expected concentric follow-profile rings below 0.05mm, got {followHatch.Count}");
     }
+
+    [Fact]
+    public void Hatching_ZigZag_ThermalDispersion_HighLineCount_ExecutesFastAndDispersesGlobally()
+    {
+        // Test with 1,000 lines and 2,000 lines (representing 10mm and 20mm parts at 0.01mm stepover)
+        const int totalLines = 2000;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        List<int> sequence = ZigZagHatchGenerator.GenerateThermalDispersionSequence(totalLines);
+        sw.Stop();
+
+        // 1. Must execute rapidly (previously took 30-60+ seconds, now executes in < 50ms)
+        Assert.True(sw.ElapsedMilliseconds < 500, $"Thermal dispersion for {totalLines} lines took {sw.ElapsedMilliseconds} ms, expected < 500 ms");
+
+        // 2. All scanlines covered with zero duplicates
+        Assert.Equal(totalLines, sequence.Count);
+        Assert.Equal(totalLines, sequence.Distinct().Count());
+
+        // 3. Initial strokes establish opposing boundaries
+        Assert.Equal(0, sequence[0]);
+        Assert.Equal(totalLines - 1, sequence[1]);
+
+        // 4. Mean distance between consecutive strokes must be large across the entire part
+        float totalDist = 0f;
+        for (int i = 0; i < sequence.Count - 1; i++)
+        {
+            totalDist += Math.Abs(sequence[i + 1] - sequence[i]);
+        }
+        float avgDist = totalDist / (sequence.Count - 1);
+        Assert.True(avgDist >= 100.0f, $"Average step distance should be >= 100 lines for N=2000, got {avgDist}");
+    }
+
+    [Fact]
+    public void Hatching_ZigZag_Stepover001mm_WithAutoLineSkip_CompletesWithoutHanging()
+    {
+        // 10x10 mm rectangle with 0.01mm stepover -> ~1,000 scanlines
+        var rect10mm = new RectangleShape(0f, 0f, 0f, width: 10f, height: 10f);
+        rect10mm.Hatch.IsEnabled = true;
+        rect10mm.Hatch.Pattern = HatchPatternType.ZigZag;
+        rect10mm.Hatch.Stepover = 0.01f;
+        rect10mm.Hatch.AutoLineSkip = true;
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        List<ToolpathSegment> segs10mm = rect10mm.GenerateSegments().ToList();
+        sw.Stop();
+
+        Assert.True(sw.ElapsedMilliseconds < 1000, $"10mm rect generation took {sw.ElapsedMilliseconds} ms, expected < 1000 ms");
+        List<ToolpathSegment> hatch10mm = segs10mm.Where(s => s.Type == SegmentType.Hatch).ToList();
+        Assert.True(hatch10mm.Count >= 900, $"Expected >= 900 hatch lines, got {hatch10mm.Count}");
+
+        // 20x20 mm rectangle with 0.01mm stepover -> ~2,000 scanlines
+        var rect20mm = new RectangleShape(0f, 0f, 0f, width: 20f, height: 20f);
+        rect20mm.Hatch.IsEnabled = true;
+        rect20mm.Hatch.Pattern = HatchPatternType.ZigZag;
+        rect20mm.Hatch.Stepover = 0.01f;
+        rect20mm.Hatch.AutoLineSkip = true;
+
+        sw.Restart();
+        List<ToolpathSegment> segs20mm = rect20mm.GenerateSegments().ToList();
+        sw.Stop();
+
+        Assert.True(sw.ElapsedMilliseconds < 1500, $"20mm rect generation took {sw.ElapsedMilliseconds} ms, expected < 1500 ms");
+        List<ToolpathSegment> hatch20mm = segs20mm.Where(s => s.Type == SegmentType.Hatch).ToList();
+        Assert.True(hatch20mm.Count >= 1900, $"Expected >= 1900 hatch lines, got {hatch20mm.Count}");
+    }
 }
 

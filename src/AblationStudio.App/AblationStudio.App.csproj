@@ -17,6 +17,8 @@
 
     <!-- Standalone Single-File Defaults -->
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <!-- UseAppHost is disabled for local dev/run so Windows Smart App Control permits signed dotnet host execution, but enabled for publish -->
+    <UseAppHost Condition="'$(RuntimeIdentifier)' == '' and '$(PublishSingleFile)' != 'true'">false</UseAppHost>
   </PropertyGroup>
 
   <ItemGroup>
