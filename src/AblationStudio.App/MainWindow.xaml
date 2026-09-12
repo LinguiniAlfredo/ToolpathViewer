@@ -202,6 +202,9 @@
                     <MenuItem Header="Show _Rapid Moves (M05)"
                               IsCheckable="True"
                               IsChecked="{Binding ShowRapids}" />
+                    <MenuItem Header="Live Path _Trace (Progressive)"
+                              IsCheckable="True"
+                              IsChecked="{Binding IsProgressiveSimulation}" />
                     <Separator />
                     <MenuItem Header="Toggle _Dark / Light Theme"
                               Command="{Binding ToggleThemeCommand}">
@@ -270,7 +273,11 @@
                             <ui:SymbolIcon Symbol="Stop24" />
                         </MenuItem.Icon>
                     </MenuItem>
+                    <MenuItem Header="Live Path _Trace (Progressive)"
+                              IsCheckable="True"
+                              IsChecked="{Binding IsProgressiveSimulation}" />
                 </MenuItem>
+
             </Menu>
         </Border>
 
@@ -801,6 +808,21 @@
                                             Maximum="1"
                                             Value="{Binding SimulationProgress, Mode=TwoWay}"
                                             Margin="0,2,0,8" />
+
+                                    <!-- Progressive Trace Mode -->
+                                    <CheckBox IsChecked="{Binding IsProgressiveSimulation, Mode=TwoWay}"
+                                              Content="Live Path Trace"
+                                              FontWeight="SemiBold"
+                                              Margin="0,2,0,4"
+                                              ToolTip="Draw the toolpath progressively as simulated rather than showing the full path context" />
+                                    <CheckBox IsChecked="{Binding ShowGhostTrail, Mode=TwoWay}"
+                                              Content="Show Ghost"
+                                              FontSize="11"
+                                              Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                              Margin="20,0,0,8"
+                                              IsEnabled="{Binding IsProgressiveSimulation}"
+                                              ToolTip="Display untraveled toolpath moves with faint transparency" />
+
 
                                     <!-- Live Coordinates Telemetry -->
                                     <Grid Margin="0,2">

@@ -1,4 +1,4 @@
-﻿using OpenTK.Graphics.OpenGL4;
+using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using AblationStudio.Core.Models;
 using AblationStudio.Rendering.Camera;
@@ -98,7 +98,7 @@ public sealed class SceneRenderer : IDisposable
         BoundingBoxRenderer.Render(_shader, mvp);
 
         // 3. Toolpath Segments
-        ToolpathRenderer.Render(_shader, mvp);
+        ToolpathRenderer.Render(mvp);
 
         // 4. Shape Editing & Selection Overlay
         ShapeOverlay.Render(_shader, mvp);

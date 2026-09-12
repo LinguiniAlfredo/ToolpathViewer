@@ -198,4 +198,60 @@ public sealed class SimulationTests
         Assert.NotEqual(AblationStudio.Rendering.Renderers.ToolIndicatorRenderer.HatchColor,
                         AblationStudio.Rendering.Renderers.ToolIndicatorRenderer.CutColor);
     }
+
+    [Fact]
+    public void SeekToDistance_FromStoppedStateWithPositiveDistance_TransitionsToPaused()
+    {
+        var seg = new ToolpathSegment(new ToolpathPoint(0f, 0f, 0f), new ToolpathPoint(50f, 0f, 0f), SegmentType.Cut);
+        var toolpath = new Toolpath("test.h", "test.h", [seg]);
+        var simulator = new ToolpathSimulator(toolpath);
+
+        Assert.Equal(SimulationState.Stopped, simulator.State);
+
+        simulator.SeekToDistance(15f);
+        Assert.Equal(SimulationState.Paused, simulator.State);
+        Assert.Equal(15f, simulator.CurrentDistance, precision: 3);
+
+        simulator.Stop();
+        Assert.Equal(SimulationState.Stopped, simulator.State);
+        Assert.Equal(0f, simulator.CurrentDistance);
+    }
+
+    [Fact]
+    public void ToolpathShaders_Sources_ContainProgressiveAttributesAndUniforms()
+    {
+        string vSource = AblationStudio.Rendering.Shaders.CommonShaders.ToolpathVertexShaderSource;
+        string fSource = AblationStudio.Rendering.Shaders.CommonShaders.ToolpathFragmentShaderSource;
+
+        Assert.Contains("aDistance", vSource);
+        Assert.Contains("vDistance", vSource);
+
+        Assert.Contains("uMaxDistance", fSource);
+        Assert.Contains("uProgressiveMode", fSource);
+        Assert.Contains("uGhostOpacity", fSource);
+        Assert.Contains("discard", fSource);
+    }
+
+    [Fact]
+    public void ToolpathRenderer_ProgressiveProperties_SetAndGetCorrectly()
+    {
+        using var renderer = new AblationStudio.Rendering.Renderers.ToolpathRenderer();
+
+        Assert.False(renderer.IsProgressive);
+        Assert.Equal(0f, renderer.CurrentDistance);
+        Assert.False(renderer.ShowGhostPath);
+        Assert.Equal(0.20f, renderer.GhostOpacity, precision: 3);
+
+        renderer.IsProgressive = true;
+        renderer.CurrentDistance = 42.5f;
+        renderer.ShowGhostPath = true;
+        renderer.GhostOpacity = 0.25f;
+
+        Assert.True(renderer.IsProgressive);
+        Assert.Equal(42.5f, renderer.CurrentDistance);
+        Assert.True(renderer.ShowGhostPath);
+        Assert.Equal(0.25f, renderer.GhostOpacity, precision: 3);
+    }
 }
+
+

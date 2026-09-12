@@ -34,6 +34,8 @@ public sealed class MainViewModel : ObservableObject
     private float _simulationFeedrate = 50.0f; // mm/s
     private long _simulationLastTimestamp;
     private bool _isSimulationHooked;
+    private bool _isProgressiveSimulation;
+    private bool _showGhostTrail;
 
     public ShapeDocument CustomShapes { get; } = new();
 
@@ -51,7 +53,7 @@ public sealed class MainViewModel : ObservableObject
     public event Action<ViewPreset>? PresetRequested;
     public event Action? FitViewRequested;
     public event Action<bool>? ThemeChangeRequested;
-    public event Action<ToolpathPoint?, SegmentType, float>? SimulationUpdated;
+    public event Action<ToolpathPoint?, SegmentType, float, float, bool, bool>? SimulationUpdated;
 
     public Toolpath LoadedToolpath
     {
@@ -404,6 +406,32 @@ public sealed class MainViewModel : ObservableObject
 
     public SegmentType SimulationSegmentType => _simulator?.CurrentSegmentType ?? SegmentType.Rapid;
 
+    public bool IsProgressiveSimulation
+    {
+        get => _isProgressiveSimulation;
+        set
+        {
+            if (SetProperty(ref _isProgressiveSimulation, value))
+            {
+                EmitSimulationPosition();
+                RequestRender?.Invoke();
+            }
+        }
+    }
+
+    public bool ShowGhostTrail
+    {
+        get => _showGhostTrail;
+        set
+        {
+            if (SetProperty(ref _showGhostTrail, value))
+            {
+                EmitSimulationPosition();
+                RequestRender?.Invoke();
+            }
+        }
+    }
+
     // Commands
     public ICommand NewFileCommand { get; }
     public ICommand OpenFileCommand { get; }
@@ -419,6 +447,8 @@ public sealed class MainViewModel : ObservableObject
     public ICommand ExitCommand { get; }
     public ICommand TogglePlaySimulationCommand { get; }
     public ICommand StopSimulationCommand { get; }
+    public ICommand ToggleProgressiveSimulationCommand { get; }
+
 
     public ICommand SelectToolCommand { get; }
     public ICommand DeleteSelectedShapeCommand { get; }
@@ -461,6 +491,7 @@ public sealed class MainViewModel : ObservableObject
 
         TogglePlaySimulationCommand = new RelayCommand(ExecuteTogglePlaySimulation, () => HasSimulation);
         StopSimulationCommand = new RelayCommand(ExecuteStopSimulation, () => HasSimulation);
+        ToggleProgressiveSimulationCommand = new RelayCommand(() => IsProgressiveSimulation = !IsProgressiveSimulation);
     }
 
     public void ExecuteTogglePlaySimulation()
@@ -549,11 +580,17 @@ public sealed class MainViewModel : ObservableObject
 
         if (_simulator is null || _simulator.State == SimulationState.Stopped)
         {
-            SimulationUpdated?.Invoke(null, SegmentType.Rapid, extent);
+            SimulationUpdated?.Invoke(null, SegmentType.Rapid, extent, 0f, false, _showGhostTrail);
         }
         else
         {
-            SimulationUpdated?.Invoke(_simulator.CurrentPosition, _simulator.CurrentSegmentType, extent);
+            SimulationUpdated?.Invoke(
+                _simulator.CurrentPosition,
+                _simulator.CurrentSegmentType,
+                extent,
+                _simulator.CurrentDistance,
+                _isProgressiveSimulation,
+                _showGhostTrail);
         }
     }
 

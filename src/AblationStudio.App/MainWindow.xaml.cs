@@ -22,9 +22,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             vm.FitViewRequested += OnFitViewRequested;
             vm.PresetRequested += OnPresetRequested;
             vm.ThemeChangeRequested += OnThemeChangeRequested;
-            vm.SimulationUpdated += (point, type, extent) =>
+            vm.SimulationUpdated += (point, type, extent, currentDistance, isProgressive, showGhost) =>
             {
-                Viewport.SetSimulationIndicator(point, type, extent);
+                Viewport.SetSimulationState(point, type, extent, currentDistance, isProgressive, showGhost);
             };
 
             Viewport.ShapeDocument = vm.CustomShapes;
@@ -63,6 +63,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         Viewport.Renderer.ToolpathRenderer.ShowHatch = vm.ShowHatch;
         Viewport.Renderer.ToolpathRenderer.ShowRapids = vm.ShowRapids;
         Viewport.Renderer.ToolpathRenderer.LineWidth = vm.LineWidth;
+        Viewport.Renderer.ToolpathRenderer.ShowGhostPath = vm.ShowGhostTrail;
         Viewport.Renderer.GridRenderer.IsVisible = vm.ShowGrid;
         Viewport.Renderer.OrientationGizmo.IsVisible = vm.ShowAxes;
         Viewport.Renderer.BoundingBoxRenderer.IsVisible = vm.ShowBoundingBox;

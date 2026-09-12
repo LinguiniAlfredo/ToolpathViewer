@@ -7,6 +7,11 @@ namespace AblationStudio.Rendering.Renderers;
 
 public sealed class ToolpathRenderer : IDisposable
 {
+    private const int FloatStride = 8;
+    private const int StrideBytes = FloatStride * sizeof(float);
+
+    private ShaderProgram? _shader;
+
     private int _cutVao;
     private int _cutVbo;
     private int _cutVertexCount;
@@ -39,23 +44,33 @@ public sealed class ToolpathRenderer : IDisposable
     public bool ShowMarkers { get; set; } = true;
     public float LineWidth { get; set; } = 2.0f;
 
+    public bool IsProgressive { get; set; }
+    public float CurrentDistance { get; set; }
+    public bool ShowGhostPath { get; set; }
+    public float GhostOpacity { get; set; } = 0.20f;
+
     public void Initialize()
     {
-        _cutVao = GL.GenVertexArray();
-        _cutVbo = GL.GenBuffer();
-        SetupVaoAttributes(_cutVao, _cutVbo);
+        _shader ??= new ShaderProgram(CommonShaders.ToolpathVertexShaderSource, CommonShaders.ToolpathFragmentShaderSource);
 
-        _hatchVao = GL.GenVertexArray();
-        _hatchVbo = GL.GenBuffer();
-        SetupVaoAttributes(_hatchVao, _hatchVbo);
+        if (_cutVao == 0)
+        {
+            _cutVao = GL.GenVertexArray();
+            _cutVbo = GL.GenBuffer();
+            SetupVaoAttributes(_cutVao, _cutVbo);
 
-        _rapidVao = GL.GenVertexArray();
-        _rapidVbo = GL.GenBuffer();
-        SetupVaoAttributes(_rapidVao, _rapidVbo);
+            _hatchVao = GL.GenVertexArray();
+            _hatchVbo = GL.GenBuffer();
+            SetupVaoAttributes(_hatchVao, _hatchVbo);
 
-        _markersVao = GL.GenVertexArray();
-        _markersVbo = GL.GenBuffer();
-        SetupVaoAttributes(_markersVao, _markersVbo);
+            _rapidVao = GL.GenVertexArray();
+            _rapidVbo = GL.GenBuffer();
+            SetupVaoAttributes(_rapidVao, _rapidVbo);
+
+            _markersVao = GL.GenVertexArray();
+            _markersVbo = GL.GenBuffer();
+            SetupVaoAttributes(_markersVao, _markersVbo);
+        }
     }
 
     public void LoadToolpath(Toolpath toolpath)
@@ -70,19 +85,25 @@ public sealed class ToolpathRenderer : IDisposable
         var rapidVertices = new List<float>();
         var markerVertices = new List<float>();
 
+        float cumulativeDist = 0f;
+
         foreach (ToolpathSegment seg in toolpath.Segments)
         {
+            float segStartDist = cumulativeDist;
+            float segEndDist = cumulativeDist + seg.Length;
+            cumulativeDist = segEndDist;
+
             switch (seg.Type)
             {
                 case SegmentType.Cut:
-                    AddSegmentVertices(cutVertices, seg, CutColor);
+                    AddSegmentVertices(cutVertices, seg, CutColor, segStartDist, segEndDist);
                     break;
                 case SegmentType.Hatch:
-                    AddSegmentVertices(hatchVertices, seg, HatchColor);
+                    AddSegmentVertices(hatchVertices, seg, HatchColor, segStartDist, segEndDist);
                     break;
                 case SegmentType.Rapid:
                 default:
-                    AddSegmentVertices(rapidVertices, seg, RapidColor);
+                    AddSegmentVertices(rapidVertices, seg, RapidColor, segStartDist, segEndDist);
                     break;
             }
         }
@@ -91,38 +112,51 @@ public sealed class ToolpathRenderer : IDisposable
         {
             ToolpathPoint first = toolpath.Segments[0].Start;
             ToolpathPoint last = toolpath.Segments[^1].End;
-            AddCrossMarker(markerVertices, first, StartNodeColor, 0.2f);
-            AddCrossMarker(markerVertices, last, EndNodeColor, 0.2f);
+            AddCrossMarker(markerVertices, first, StartNodeColor, 0.2f, 0f);
+            AddCrossMarker(markerVertices, last, EndNodeColor, 0.2f, toolpath.Statistics.TotalLength);
         }
 
         // Upload Cut buffers
-        _cutVertexCount = cutVertices.Count / 7;
+        _cutVertexCount = cutVertices.Count / FloatStride;
         UploadBufferData(_cutVao, _cutVbo, cutVertices);
 
         // Upload Hatch buffers
-        _hatchVertexCount = hatchVertices.Count / 7;
+        _hatchVertexCount = hatchVertices.Count / FloatStride;
         UploadBufferData(_hatchVao, _hatchVbo, hatchVertices);
 
         // Upload Rapid buffers
-        _rapidVertexCount = rapidVertices.Count / 7;
+        _rapidVertexCount = rapidVertices.Count / FloatStride;
         UploadBufferData(_rapidVao, _rapidVbo, rapidVertices);
 
         // Upload Markers buffer
-        _markersVertexCount = markerVertices.Count / 7;
+        _markersVertexCount = markerVertices.Count / FloatStride;
         UploadBufferData(_markersVao, _markersVbo, markerVertices);
 
         _hasData = toolpath.Segments.Count > 0;
     }
 
-    public void Render(ShaderProgram shader, Matrix4 mvp)
+    public void Render(Matrix4 mvp)
     {
         if (!_hasData)
         {
             return;
         }
 
-        shader.Use();
-        shader.SetUniformMatrix4("uMvp", ref mvp);
+        if (_shader is null)
+        {
+            Initialize();
+        }
+
+        if (_shader is null)
+        {
+            return;
+        }
+
+        _shader.Use();
+        _shader.SetUniformMatrix4("uMvp", ref mvp);
+        _shader.SetUniformInt("uProgressiveMode", IsProgressive ? 1 : 0);
+        _shader.SetUniformFloat("uMaxDistance", CurrentDistance);
+        _shader.SetUniformFloat("uGhostOpacity", ShowGhostPath ? GhostOpacity : 0.0f);
 
         GL.Enable(EnableCap.Blend);
         GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
@@ -160,7 +194,12 @@ public sealed class ToolpathRenderer : IDisposable
         GL.BindVertexArray(0);
     }
 
-    private static void AddSegmentVertices(List<float> buffer, ToolpathSegment segment, Vector4 color)
+    public void Render(ShaderProgram? shader, Matrix4 mvp)
+    {
+        Render(mvp);
+    }
+
+    private static void AddSegmentVertices(List<float> buffer, ToolpathSegment segment, Vector4 color, float startDist, float endDist)
     {
         // Start vertex
         buffer.Add(segment.Start.X);
@@ -170,6 +209,7 @@ public sealed class ToolpathRenderer : IDisposable
         buffer.Add(color.Y);
         buffer.Add(color.Z);
         buffer.Add(color.W);
+        buffer.Add(startDist);
 
         // End vertex
         buffer.Add(segment.End.X);
@@ -179,29 +219,36 @@ public sealed class ToolpathRenderer : IDisposable
         buffer.Add(color.Y);
         buffer.Add(color.Z);
         buffer.Add(color.W);
+        buffer.Add(endDist);
     }
 
-    private static void AddCrossMarker(List<float> buffer, ToolpathPoint pt, Vector4 color, float size)
+    private static void AddCrossMarker(List<float> buffer, ToolpathPoint pt, Vector4 color, float size, float distance)
     {
         float s = size * 0.5f;
 
         // X line
         buffer.Add(pt.X - s); buffer.Add(pt.Y); buffer.Add(pt.Z);
         buffer.Add(color.X); buffer.Add(color.Y); buffer.Add(color.Z); buffer.Add(color.W);
+        buffer.Add(distance);
         buffer.Add(pt.X + s); buffer.Add(pt.Y); buffer.Add(pt.Z);
         buffer.Add(color.X); buffer.Add(color.Y); buffer.Add(color.Z); buffer.Add(color.W);
+        buffer.Add(distance);
 
         // Y line
         buffer.Add(pt.X); buffer.Add(pt.Y - s); buffer.Add(pt.Z);
         buffer.Add(color.X); buffer.Add(color.Y); buffer.Add(color.Z); buffer.Add(color.W);
+        buffer.Add(distance);
         buffer.Add(pt.X); buffer.Add(pt.Y + s); buffer.Add(pt.Z);
         buffer.Add(color.X); buffer.Add(color.Y); buffer.Add(color.Z); buffer.Add(color.W);
+        buffer.Add(distance);
 
         // Z line
         buffer.Add(pt.X); buffer.Add(pt.Y); buffer.Add(pt.Z - s);
         buffer.Add(color.X); buffer.Add(color.Y); buffer.Add(color.Z); buffer.Add(color.W);
+        buffer.Add(distance);
         buffer.Add(pt.X); buffer.Add(pt.Y); buffer.Add(pt.Z + s);
         buffer.Add(color.X); buffer.Add(color.Y); buffer.Add(color.Z); buffer.Add(color.W);
+        buffer.Add(distance);
     }
 
     private static void SetupVaoAttributes(int vao, int vbo)
@@ -209,15 +256,17 @@ public sealed class ToolpathRenderer : IDisposable
         GL.BindVertexArray(vao);
         GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
 
-        const int stride = 7 * sizeof(float);
-
         // Location 0: aPosition (vec3)
         GL.EnableVertexAttribArray(0);
-        GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, stride, 0);
+        GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, StrideBytes, 0);
 
         // Location 1: aColor (vec4)
         GL.EnableVertexAttribArray(1);
-        GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, stride, 3 * sizeof(float));
+        GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, StrideBytes, 3 * sizeof(float));
+
+        // Location 2: aDistance (float)
+        GL.EnableVertexAttribArray(2);
+        GL.VertexAttribPointer(2, 1, VertexAttribPointerType.Float, false, StrideBytes, 7 * sizeof(float));
 
         GL.BindVertexArray(0);
     }
@@ -243,6 +292,10 @@ public sealed class ToolpathRenderer : IDisposable
             if (_rapidVao != 0) GL.DeleteVertexArray(_rapidVao);
             if (_markersVbo != 0) GL.DeleteBuffer(_markersVbo);
             if (_markersVao != 0) GL.DeleteVertexArray(_markersVao);
+
+            _shader?.Dispose();
+            _shader = null;
+
             _disposed = true;
         }
     }

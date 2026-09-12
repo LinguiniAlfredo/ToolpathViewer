@@ -1,4 +1,4 @@
-﻿using AblationStudio.Core.Models;
+using AblationStudio.Core.Models;
 
 namespace AblationStudio.Core.Simulation;
 
@@ -129,7 +129,7 @@ public sealed class ToolpathSimulator
         {
             _state = SimulationState.Completed;
         }
-        else if (_state == SimulationState.Completed && _currentDistance < TotalDistance)
+        else if ((_state == SimulationState.Completed || _state == SimulationState.Stopped) && _currentDistance > 0f)
         {
             _state = SimulationState.Paused;
         }

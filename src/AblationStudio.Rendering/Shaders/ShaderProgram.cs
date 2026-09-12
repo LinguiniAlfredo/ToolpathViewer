@@ -1,4 +1,4 @@
-﻿using OpenTK.Graphics.OpenGL4;
+using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 
 namespace AblationStudio.Rendering.Shaders;
@@ -66,6 +66,16 @@ public sealed class ShaderProgram : IDisposable
             GL.Uniform1(location, value);
         }
     }
+
+    public void SetUniformInt(string name, int value)
+    {
+        int location = GL.GetUniformLocation(Handle, name);
+        if (location >= 0)
+        {
+            GL.Uniform1(location, value);
+        }
+    }
+
 
     private static int CompileShader(ShaderType type, string source)
     {

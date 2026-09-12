@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -210,6 +210,34 @@ public partial class OpenGLViewport : UserControl
 
         GlSurface.InvalidateVisual();
     }
+
+    public void SetSimulationState(
+        ToolpathPoint? point,
+        SegmentType segmentType,
+        float modelExtent,
+        float currentDistance,
+        bool isProgressive,
+        bool showGhost)
+    {
+        if (point is null)
+        {
+            _renderer.ToolIndicator.IsVisible = false;
+        }
+        else
+        {
+            _renderer.ToolIndicator.IsVisible = true;
+            float scale = Math.Clamp(modelExtent * 0.04f, 0.4f, 8.0f);
+            var v3 = new Vector3(point.Value.X, point.Value.Y, point.Value.Z);
+            _renderer.ToolIndicator.UpdatePosition(v3, segmentType, scale);
+        }
+
+        _renderer.ToolpathRenderer.IsProgressive = isProgressive;
+        _renderer.ToolpathRenderer.CurrentDistance = currentDistance;
+        _renderer.ToolpathRenderer.ShowGhostPath = showGhost;
+
+        GlSurface.InvalidateVisual();
+    }
+
 
     private void GlSurface_OnRender(TimeSpan delta)
     {
