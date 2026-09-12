@@ -573,5 +573,57 @@ public sealed class HatchingTests
         float avgDist = totalDist / (sequence.Count - 1);
         Assert.True(avgDist >= 4.0f, $"Average step distance should be >= 4.0 lines, got {avgDist}");
     }
+
+    [Fact]
+    public void HatchSettings_Stepover_ClampsTo0001mm()
+    {
+        var settings = new HatchSettings();
+        settings.Stepover = 0.001f;
+        Assert.Equal(0.001f, settings.Stepover, precision: 4);
+
+        // Clamps lower bound to 0.001 mm
+        settings.Stepover = 0.0001f;
+        Assert.Equal(0.001f, settings.Stepover, precision: 4);
+    }
+
+    [Fact]
+    public void Hatching_MinimumStepover0001mm_GeneratesForZigZagSpiralAndFollowProfile()
+    {
+        // 1. ZigZag with 0.001mm stepover on a 0.05 x 0.05 mm rectangle
+        var rectZigZag = new RectangleShape(0f, 0f, 0f, width: 0.05f, height: 0.05f);
+        rectZigZag.Hatch.IsEnabled = true;
+        rectZigZag.Hatch.Pattern = HatchPatternType.ZigZag;
+        rectZigZag.Hatch.Stepover = 0.001f;
+        rectZigZag.Hatch.KeepBoundary = false;
+
+        List<ToolpathSegment> zigZagSegments = rectZigZag.GenerateSegments().ToList();
+        List<ToolpathSegment> zigZagHatch = zigZagSegments.Where(s => s.Type == SegmentType.Hatch).ToList();
+        Assert.True(zigZagHatch.Count >= 40, $"Expected >= 40 scanlines for 0.05mm height with 0.001mm stepover, got {zigZagHatch.Count}");
+
+        // 2. Spiral with 0.001mm stepover on a 0.02 mm radius circle
+        var circleSpiral = new CircleShape(0f, 0f, 0f, radius: 0.02f);
+        circleSpiral.Hatch.IsEnabled = true;
+        circleSpiral.Hatch.Pattern = HatchPatternType.Spiral;
+        circleSpiral.Hatch.Stepover = 0.001f;
+        circleSpiral.Hatch.KeepBoundary = false;
+
+        List<ToolpathSegment> spiralSegments = circleSpiral.GenerateSegments().ToList();
+        List<ToolpathSegment> spiralHatch = spiralSegments.Where(s => s.Type == SegmentType.Hatch).ToList();
+        Assert.NotEmpty(spiralHatch);
+        Assert.True(spiralHatch.Count >= 100, $"Expected >= 100 spiral segments for 0.02mm radius with 0.001mm stepover, got {spiralHatch.Count}");
+
+        // 3. FollowProfile with 0.001mm stepover on a 0.02 x 0.02 mm rectangle (would have produced 0 rings under old 0.05mm limit)
+        var rectFollow = new RectangleShape(0f, 0f, 0f, width: 0.02f, height: 0.02f);
+        rectFollow.Hatch.IsEnabled = true;
+        rectFollow.Hatch.Pattern = HatchPatternType.FollowProfile;
+        rectFollow.Hatch.Stepover = 0.001f;
+        rectFollow.Hatch.KeepBoundary = false;
+
+        List<ToolpathSegment> followSegments = rectFollow.GenerateSegments().ToList();
+        List<ToolpathSegment> followHatch = followSegments.Where(s => s.Type == SegmentType.Hatch).ToList();
+        Assert.NotEmpty(followHatch);
+        // Rings shrink from 0.02mm down towards 0.001mm (roughly 9 rings * 4 sides = 36 hatch segments)
+        Assert.True(followHatch.Count >= 20, $"Expected concentric follow-profile rings below 0.05mm, got {followHatch.Count}");
+    }
 }
 

@@ -350,7 +350,7 @@ public sealed class MainViewModel : ObservableObject
         get => _simulationFeedrate;
         set
         {
-            if (SetProperty(ref _simulationFeedrate, MathF.Max(1.0f, value)))
+            if (SetProperty(ref _simulationFeedrate, Math.Clamp(value, 1.0f, 4000.0f)))
             {
                 if (_simulator is not null)
                 {
@@ -392,13 +392,13 @@ public sealed class MainViewModel : ObservableObject
         {
             SegmentType.Cut => "Laser ON (Profile - M03)",
             SegmentType.Hatch => "Laser ON (Hatch - M03)",
-            _ => "Rapid Move (M05)"
+            _ => "Jump Move (M05)"
         },
         SimulationState.Paused => _simulator.CurrentSegmentType switch
         {
             SegmentType.Cut => "Paused (Profile - M03)",
             SegmentType.Hatch => "Paused (Hatch - M03)",
-            _ => "Paused (Rapid - M05)"
+            _ => "Paused (Jump - M05)"
         },
         SimulationState.Completed => "Completed",
         _ => "Idle"
@@ -815,7 +815,7 @@ public sealed class MainViewModel : ObservableObject
             LoadedToolpath = toolpath;
             ToolpathLoaded?.Invoke(toolpath, true);
             FitViewRequested?.Invoke();
-            StatusText = $"Loaded machine toolpath {toolpath.Name}: {toolpath.Segments.Count} segments ({toolpath.Statistics.CutSegmentsCount} cut, {toolpath.Statistics.RapidSegmentsCount} rapid).";
+            StatusText = $"Loaded machine toolpath {toolpath.Name}: {toolpath.Segments.Count} segments ({toolpath.Statistics.CutSegmentsCount} cut, {toolpath.Statistics.RapidSegmentsCount} jump).";
         }
         catch (Exception ex)
         {

@@ -199,7 +199,7 @@
                     <MenuItem Header="Show _Hatch Moves (M03)"
                               IsCheckable="True"
                               IsChecked="{Binding ShowHatch}" />
-                    <MenuItem Header="Show _Rapid Moves (M05)"
+                    <MenuItem Header="Show _Jump Moves (M05)"
                               IsCheckable="True"
                               IsChecked="{Binding ShowRapids}" />
                     <MenuItem Header="Live Path _Trace (Progressive)"
@@ -392,34 +392,35 @@
                 <TextBlock Text="Layers:" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="12" />
 
                 <ToggleButton IsChecked="{Binding ShowCuts}"
-                              ToolTip="Toggle Cutting Moves (M03)"
+                              ToolTip="Toggle Profile Moves"
                               Margin="0,0,4,0">
                     <StackPanel Orientation="Horizontal">
                         <Border Width="8" Height="8" CornerRadius="4" Background="#00D2FF" Margin="0,0,6,0" VerticalAlignment="Center" />
-                        <TextBlock Text="Cuts (M03)"
+                        <TextBlock Text="Profile"
                                    Foreground="{Binding RelativeSource={RelativeSource AncestorType=ContentPresenter}, Path=(TextElement.Foreground)}" />
                     </StackPanel>
                 </ToggleButton>
 
                 <ToggleButton IsChecked="{Binding ShowHatch}"
-                              ToolTip="Toggle Hatch Infill Moves (M03)"
+                              ToolTip="Toggle Hatch Infill Moves"
                               Margin="0,0,4,0">
                     <StackPanel Orientation="Horizontal">
                         <Border Width="8" Height="8" CornerRadius="4" Background="#D946EF" Margin="0,0,6,0" VerticalAlignment="Center" />
-                        <TextBlock Text="Hatch (M03)"
+                        <TextBlock Text="Hatch"
                                    Foreground="{Binding RelativeSource={RelativeSource AncestorType=ContentPresenter}, Path=(TextElement.Foreground)}" />
                     </StackPanel>
                 </ToggleButton>
 
                 <ToggleButton IsChecked="{Binding ShowRapids}"
-                              ToolTip="Toggle Rapid Positioning Moves (M05)"
+                              ToolTip="Toggle Jump Positioning Moves"
                               Margin="0,0,4,0">
                     <StackPanel Orientation="Horizontal">
                         <Border Width="8" Height="8" CornerRadius="4" Background="#FFAA00" Margin="0,0,6,0" VerticalAlignment="Center" />
-                        <TextBlock Text="Rapids (M05)"
+                        <TextBlock Text="Jumps"
                                    Foreground="{Binding RelativeSource={RelativeSource AncestorType=ContentPresenter}, Path=(TextElement.Foreground)}" />
                     </StackPanel>
                 </ToggleButton>
+
 
                 <ToggleButton IsChecked="{Binding ShowGrid}"
                               ToolTip="Toggle 3D Reference Grid"
@@ -485,7 +486,7 @@
 
                     <TextBlock Text="Feed:" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="12" />
                     <Slider Minimum="5"
-                            Maximum="250"
+                            Maximum="4000"
                             Value="{Binding SimulationFeedrate, Mode=TwoWay}"
                             Width="85"
                             VerticalAlignment="Center"
@@ -793,7 +794,7 @@
                                                    FontSize="12" />
                                     </Grid>
                                     <Slider Minimum="5"
-                                            Maximum="250"
+                                            Maximum="4000"
                                             Value="{Binding SimulationFeedrate, Mode=TwoWay}"
                                             Margin="0,2,0,8" />
 
@@ -868,7 +869,7 @@
                                     <Grid Margin="0,2">
                                         <StackPanel Orientation="Horizontal">
                                             <Border Width="8" Height="8" CornerRadius="4" Background="#FFAA00" Margin="0,0,6,0" VerticalAlignment="Center" />
-                                            <TextBlock Text="Rapid Moves (M05):" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock Text="Jump Moves (M05):" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                         </StackPanel>
                                         <TextBlock Text="{Binding RapidSegmentsCount}" FontWeight="SemiBold" HorizontalAlignment="Right" />
                                     </Grid>
@@ -886,7 +887,7 @@
                                     </Grid>
 
                                     <Grid Margin="0,2">
-                                        <TextBlock Text="Total Rapid Length:" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Text="Total Jump Length:" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                         <TextBlock Text="{Binding TotalRapidLengthText}" FontWeight="SemiBold" Foreground="#FFAA00" HorizontalAlignment="Right" />
                                     </Grid>
 
@@ -998,7 +999,7 @@
                                                       SelectedValuePath="Tag"
                                                       HorizontalAlignment="Stretch">
                                                 <ComboBoxItem Content="Cut (M03)" Tag="{x:Static core:SegmentType.Cut}" />
-                                                <ComboBoxItem Content="Rapid (M05)" Tag="{x:Static core:SegmentType.Rapid}" />
+                                                <ComboBoxItem Content="Jump (M05)" Tag="{x:Static core:SegmentType.Rapid}" />
                                             </ComboBox>
                                         </StackPanel>
                                     </Grid>
@@ -1237,18 +1238,34 @@
 
                                             <!-- Stepover (Line Spacing / Inset Distance) -->
                                             <Grid Margin="0,2">
-                                                <TextBlock Text="Stepover (mm):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                                <TextBlock Text="{Binding SelectedShape.Hatch.Stepover, StringFormat='{}{0:F2} mm'}"
-                                                           FontWeight="SemiBold"
-                                                           HorizontalAlignment="Right"
-                                                           FontSize="11" />
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="Stepover (mm):"
+                                                           FontSize="11"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                <ui:TextBox Grid.Column="1"
+                                                            Text="{Binding SelectedShape.Hatch.Stepover, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat='{}{0:0.###}'}"
+                                                            KeyDown="OnNumericTextBoxKeyDown"
+                                                            ToolTip="Directly enter stepover in millimeters (min 0.001 mm). Press Enter to apply."
+                                                            Width="70"
+                                                            Height="24"
+                                                            Padding="6,1"
+                                                            FontSize="11"
+                                                            FontWeight="SemiBold"
+                                                            TextAlignment="Right"
+                                                            VerticalAlignment="Center"
+                                                            ClearButtonEnabled="False" />
                                             </Grid>
-                                            <Slider Minimum="0.05"
+                                            <Slider Minimum="0.001"
                                                     Maximum="5.0"
-                                                    TickFrequency="0.05"
+                                                    TickFrequency="0.001"
+                                                    SmallChange="0.001"
                                                     IsSnapToTickEnabled="False"
                                                     Value="{Binding SelectedShape.Hatch.Stepover, Mode=TwoWay}"
-                                                    Margin="0,2,0,8" />
+                                                    Margin="0,4,0,8" />
 
                                             <!-- Angle (Degrees) - Visible only for ZigZag (Hidden for Spiral and Follow Profile) -->
                                             <StackPanel>
@@ -1263,16 +1280,31 @@
                                                     </Style>
                                                 </StackPanel.Style>
                                                 <Grid Margin="0,2">
-                                                    <TextBlock Text="Angle / Rotation (°):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                                    <TextBlock Text="{Binding SelectedShape.Hatch.AngleDegrees, StringFormat='{}{0:F0}°'}"
-                                                               FontWeight="SemiBold"
-                                                               HorizontalAlignment="Right"
-                                                               FontSize="11" />
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Angle / Rotation (°):"
+                                                               FontSize="11"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                    <ui:TextBox Grid.Column="1"
+                                                                Text="{Binding SelectedShape.Hatch.AngleDegrees, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat='{}{0:0.#}'}"
+                                                                KeyDown="OnNumericTextBoxKeyDown"
+                                                                ToolTip="Directly enter angle in degrees (0-360°). Press Enter to apply."
+                                                                Width="70"
+                                                                Height="24"
+                                                                Padding="6,1"
+                                                                FontSize="11"
+                                                                FontWeight="SemiBold"
+                                                                TextAlignment="Right"
+                                                                VerticalAlignment="Center"
+                                                                ClearButtonEnabled="False" />
                                                 </Grid>
                                                 <Slider Minimum="0"
                                                         Maximum="360"
                                                         Value="{Binding SelectedShape.Hatch.AngleDegrees, Mode=TwoWay}"
-                                                        Margin="0,2,0,8" />
+                                                        Margin="0,4,0,8" />
                                             </StackPanel>
 
                                             <!-- Spiral Specific Settings -->

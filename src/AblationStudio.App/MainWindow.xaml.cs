@@ -85,4 +85,25 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         ApplicationThemeManager.Apply(isDark ? ApplicationTheme.Dark : ApplicationTheme.Light);
         Viewport.SetTheme(isDark);
     }
+
+    private void OnNumericTextBoxKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (sender is System.Windows.Controls.TextBox textBox)
+        {
+            if (e.Key == System.Windows.Input.Key.Enter)
+            {
+                var binding = System.Windows.Data.BindingOperations.GetBindingExpression(textBox, System.Windows.Controls.TextBox.TextProperty);
+                binding?.UpdateSource();
+                System.Windows.Input.Keyboard.ClearFocus();
+                e.Handled = true;
+            }
+            else if (e.Key == System.Windows.Input.Key.Escape)
+            {
+                var binding = System.Windows.Data.BindingOperations.GetBindingExpression(textBox, System.Windows.Controls.TextBox.TextProperty);
+                binding?.UpdateTarget();
+                System.Windows.Input.Keyboard.ClearFocus();
+                e.Handled = true;
+            }
+        }
+    }
 }

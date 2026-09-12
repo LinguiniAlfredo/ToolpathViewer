@@ -252,6 +252,26 @@ public sealed class SimulationTests
         Assert.True(renderer.ShowGhostPath);
         Assert.Equal(0.25f, renderer.GhostOpacity, precision: 3);
     }
+
+    [Fact]
+    public void Simulator_Feedrate_Supports4000MmPerSecond_AndAdvancesCorrectly()
+    {
+        var seg = new ToolpathSegment(new ToolpathPoint(0, 0, 0), new ToolpathPoint(1000, 0, 0), SegmentType.Cut);
+        var toolpath = new Toolpath("FastPath", "FastPath.h", [seg]);
+
+        var sim = new ToolpathSimulator(toolpath)
+        {
+            Feedrate = 4000f // 4000 mm/s
+        };
+
+        Assert.Equal(4000f, sim.Feedrate);
+
+        sim.Play();
+        // Advance by 0.1 seconds -> 400 mm
+        sim.Update(0.1f);
+        Assert.Equal(400f, sim.CurrentDistance, precision: 1);
+        Assert.Equal(400f, sim.CurrentPosition.X, precision: 1);
+    }
 }
 
 

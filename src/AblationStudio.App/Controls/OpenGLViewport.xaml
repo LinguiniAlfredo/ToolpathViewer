@@ -82,7 +82,7 @@
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,2">
                         <Border Width="12" Height="2" CornerRadius="1" Background="#FFAA00" Margin="0,0,8,0" VerticalAlignment="Center" />
-                        <TextBlock Text="Rapid " FontWeight="SemiBold" Foreground="#CCD0D8" FontSize="11" />
+                        <TextBlock Text="Jump " FontWeight="SemiBold" Foreground="#CCD0D8" FontSize="11" />
                         <TextBlock Text="(M05 - Laser OFF)" Foreground="#99A0B0" FontSize="11" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,2">

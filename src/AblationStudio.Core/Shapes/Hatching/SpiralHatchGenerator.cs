@@ -12,7 +12,7 @@ public static class SpiralHatchGenerator
         ref ToolpathPoint? currentPosition)
     {
         var segments = new List<ToolpathSegment>();
-        float stepover = MathF.Max(0.005f, settings.Stepover);
+        float stepover = MathF.Max(0.001f, settings.Stepover);
         float z = shape.PositionZ;
         int layerId = shape.LayerId;
         float cx = shape.PositionX;
@@ -34,7 +34,7 @@ public static class SpiralHatchGenerator
         }
 
         // Find max distance from center to any boundary vertex
-        float maxR = 0.01f;
+        float maxR = 0.001f;
         var center2D = new HatchGeometry.Point2D(cx, cy);
         for (int i = 0; i < poly.Count; i++)
         {
@@ -127,7 +127,7 @@ public static class SpiralHatchGenerator
                 continue;
             }
 
-            if (currentPosition is null || currentPosition.Value.DistanceTo(stroke[0]) > 0.001f)
+            if (currentPosition is null || currentPosition.Value.DistanceTo(stroke[0]) > 0.0001f)
             {
                 if (currentPosition is not null)
                 {
@@ -155,7 +155,7 @@ public static class SpiralHatchGenerator
         ref ToolpathPoint? currentPosition)
     {
         float rMax = circle.Radius;
-        if (rMax <= 0.01f)
+        if (rMax <= 0.001f)
         {
             return;
         }
@@ -199,7 +199,7 @@ public static class SpiralHatchGenerator
             return;
         }
 
-        if (currentPosition is null || currentPosition.Value.DistanceTo(points[0]) > 0.001f)
+        if (currentPosition is null || currentPosition.Value.DistanceTo(points[0]) > 0.0001f)
         {
             if (currentPosition is not null)
             {

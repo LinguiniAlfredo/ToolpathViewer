@@ -500,6 +500,47 @@ public sealed class ShapeTests
             prev = val;
         }
     }
+
+    [Fact]
+    public void HatchSettings_Stepover_ManualTextBoxBinding_UpdatesBothWays()
+    {
+        var thread = new Thread(() =>
+        {
+            var hatch = new HatchSettings { Stepover = 0.5f };
+
+            var textBox = new System.Windows.Controls.TextBox();
+            var binding = new System.Windows.Data.Binding(nameof(HatchSettings.Stepover))
+            {
+                Source = hatch,
+                Mode = System.Windows.Data.BindingMode.TwoWay,
+                UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.LostFocus,
+                StringFormat = "{0:0.###}"
+            };
+            textBox.SetBinding(System.Windows.Controls.TextBox.TextProperty, binding);
+
+            // 1. Initial display
+            Assert.Equal("0.5", textBox.Text);
+
+            // 2. Simulated external slider change updates TextBox
+            hatch.Stepover = 0.025f;
+            Assert.Equal("0.025", textBox.Text);
+
+            // 3. Simulated user manual entry updates hatch settings on commit
+            textBox.Text = "0.003";
+            var expr = System.Windows.Data.BindingOperations.GetBindingExpression(textBox, System.Windows.Controls.TextBox.TextProperty);
+            expr?.UpdateSource();
+            Assert.Equal(0.003f, hatch.Stepover, precision: 4);
+
+            // 4. Clamping handles manual input below 0.001 mm
+            textBox.Text = "0.0002";
+            expr?.UpdateSource();
+            Assert.Equal(0.001f, hatch.Stepover, precision: 4);
+        });
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+    }
 }
 
 

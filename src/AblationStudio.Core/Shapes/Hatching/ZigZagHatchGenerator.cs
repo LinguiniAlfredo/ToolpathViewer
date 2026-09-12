@@ -43,7 +43,7 @@ public static class ZigZagHatchGenerator
         int layerId,
         ref ToolpathPoint? currentPosition)
     {
-        float stepover = settings.Stepover;
+        float stepover = MathF.Max(0.001f, settings.Stepover);
         float rad = angleDegrees * (MathF.PI / 180f);
         float cosFwd = MathF.Cos(rad);
         float sinFwd = MathF.Sin(rad);
@@ -177,7 +177,7 @@ public static class ZigZagHatchGenerator
         var startPoint = new ToolpathPoint(ptStart2D.X, ptStart2D.Y, z);
         var endPoint = new ToolpathPoint(ptEnd2D.X, ptEnd2D.Y, z);
 
-        if (currentPosition is null || currentPosition.Value.DistanceTo(startPoint) > 0.001f)
+        if (currentPosition is null || currentPosition.Value.DistanceTo(startPoint) > 0.0001f)
         {
             if (currentPosition is not null)
             {

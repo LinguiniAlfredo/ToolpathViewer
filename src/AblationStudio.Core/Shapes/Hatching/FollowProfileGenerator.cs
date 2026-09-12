@@ -10,7 +10,7 @@ public static class FollowProfileGenerator
         ref ToolpathPoint? currentPosition)
     {
         var segments = new List<ToolpathSegment>();
-        float stepover = MathF.Max(0.005f, settings.Stepover);
+        float stepover = MathF.Max(0.001f, settings.Stepover);
         int layerId = shape.LayerId;
         float z = shape.PositionZ;
 
@@ -54,7 +54,7 @@ public static class FollowProfileGenerator
         float cx = circle.PositionX;
         float cy = circle.PositionY;
 
-        for (float r = outerR - stepover; r > 0.02f; r -= stepover)
+        for (float r = outerR - stepover; r > 0.0005f; r -= stepover)
         {
             var ringPoints = new ToolpathPoint[count];
             for (int i = 0; i < count; i++)
@@ -88,7 +88,7 @@ public static class FollowProfileGenerator
             float wk = w - 2f * k * stepover;
             float hk = h - 2f * k * stepover;
 
-            if (wk <= 0.05f || hk <= 0.05f)
+            if (wk <= 0.001f || hk <= 0.001f)
             {
                 break;
             }
@@ -135,7 +135,7 @@ public static class FollowProfileGenerator
         float cosHalfAngle = MathF.Cos(MathF.PI / sides);
         float deltaR = stepover / MathF.Max(0.01f, cosHalfAngle);
 
-        for (float r = outerR - deltaR; r > 0.05f; r -= deltaR)
+        for (float r = outerR - deltaR; r > 0.001f; r -= deltaR)
         {
             var ringPoints = new ToolpathPoint[sides];
             for (int i = 0; i < sides; i++)
@@ -165,17 +165,17 @@ public static class FollowProfileGenerator
         float cx = shape.PositionX;
         float cy = shape.PositionY;
 
-        float maxR = 0.01f;
+        float maxR = 0.001f;
         for (int i = 0; i < pts.Count; i++)
         {
             float d = MathF.Sqrt(MathF.Pow(pts[i].X - cx, 2) + MathF.Pow(pts[i].Y - cy, 2));
             maxR = MathF.Max(maxR, d);
         }
 
-        for (float offset = stepover; offset < maxR - 0.05f; offset += stepover)
+        for (float offset = stepover; offset < maxR - 0.001f; offset += stepover)
         {
             float scale = 1.0f - (offset / maxR);
-            if (scale <= 0.02f)
+            if (scale <= 0.001f)
             {
                 break;
             }
@@ -206,7 +206,7 @@ public static class FollowProfileGenerator
         }
 
         // Rapid to the start of this loop
-        if (currentPosition is null || currentPosition.Value.DistanceTo(points[0]) > 0.001f)
+        if (currentPosition is null || currentPosition.Value.DistanceTo(points[0]) > 0.0001f)
         {
             if (currentPosition is not null)
             {
@@ -221,7 +221,7 @@ public static class FollowProfileGenerator
         }
 
         // Close the loop
-        if (points[^1].DistanceTo(points[0]) > 0.001f)
+        if (points[^1].DistanceTo(points[0]) > 0.0001f)
         {
             segments.Add(new ToolpathSegment(points[^1], points[0], SegmentType.Hatch, layerId));
         }
