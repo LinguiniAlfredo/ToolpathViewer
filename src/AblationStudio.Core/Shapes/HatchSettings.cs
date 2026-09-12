@@ -5,6 +5,8 @@ namespace AblationStudio.Core.Shapes;
 
 public sealed class HatchSettings : INotifyPropertyChanged
 {
+    public const float MinStepover = 0.01f;
+
     private bool _isEnabled;
     private HatchPatternType _pattern = HatchPatternType.ZigZag;
     private float _stepover = 0.5f;
@@ -48,7 +50,7 @@ public sealed class HatchSettings : INotifyPropertyChanged
         get => _stepover;
         set
         {
-            float val = MathF.Max(0.001f, value);
+            float val = MathF.Max(MinStepover, value);
             if (SetProperty(ref _stepover, val))
             {
                 OnSettingsModified();

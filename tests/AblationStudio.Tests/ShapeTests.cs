@@ -526,15 +526,15 @@ public sealed class ShapeTests
             Assert.Equal("0.025", textBox.Text);
 
             // 3. Simulated user manual entry updates hatch settings on commit
-            textBox.Text = "0.003";
+            textBox.Text = "0.03";
             var expr = System.Windows.Data.BindingOperations.GetBindingExpression(textBox, System.Windows.Controls.TextBox.TextProperty);
             expr?.UpdateSource();
-            Assert.Equal(0.003f, hatch.Stepover, precision: 4);
+            Assert.Equal(0.03f, hatch.Stepover, precision: 4);
 
-            // 4. Clamping handles manual input below 0.001 mm
-            textBox.Text = "0.0002";
+            // 4. Clamping handles manual input below 0.01 mm
+            textBox.Text = "0.002";
             expr?.UpdateSource();
-            Assert.Equal(0.001f, hatch.Stepover, precision: 4);
+            Assert.Equal(0.01f, hatch.Stepover, precision: 4);
         });
 
         thread.SetApartmentState(ApartmentState.STA);

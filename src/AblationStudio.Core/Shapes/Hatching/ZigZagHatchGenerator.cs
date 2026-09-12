@@ -43,7 +43,7 @@ public static class ZigZagHatchGenerator
         int layerId,
         ref ToolpathPoint? currentPosition)
     {
-        float stepover = MathF.Max(0.001f, settings.Stepover);
+        float stepover = MathF.Max(HatchSettings.MinStepover, settings.Stepover);
         float rad = angleDegrees * (MathF.PI / 180f);
         float cosFwd = MathF.Cos(rad);
         float sinFwd = MathF.Sin(rad);

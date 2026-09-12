@@ -12,7 +12,7 @@ public static class SpiralHatchGenerator
         ref ToolpathPoint? currentPosition)
     {
         var segments = new List<ToolpathSegment>();
-        float stepover = MathF.Max(0.001f, settings.Stepover);
+        float stepover = MathF.Max(HatchSettings.MinStepover, settings.Stepover);
         float z = shape.PositionZ;
         int layerId = shape.LayerId;
         float cx = shape.PositionX;

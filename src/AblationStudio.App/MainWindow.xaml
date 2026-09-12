@@ -1249,7 +1249,7 @@
                                                 <ui:TextBox Grid.Column="1"
                                                             Text="{Binding SelectedShape.Hatch.Stepover, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat='{}{0:0.###}'}"
                                                             KeyDown="OnNumericTextBoxKeyDown"
-                                                            ToolTip="Directly enter stepover in millimeters (min 0.001 mm). Press Enter to apply."
+                                                            ToolTip="Directly enter stepover in millimeters (min 0.01 mm). Press Enter to apply."
                                                             Width="70"
                                                             Height="24"
                                                             Padding="6,1"
@@ -1259,10 +1259,10 @@
                                                             VerticalAlignment="Center"
                                                             ClearButtonEnabled="False" />
                                             </Grid>
-                                            <Slider Minimum="0.001"
+                                            <Slider Minimum="0.01"
                                                     Maximum="5.0"
-                                                    TickFrequency="0.001"
-                                                    SmallChange="0.001"
+                                                    TickFrequency="0.01"
+                                                    SmallChange="0.01"
                                                     IsSnapToTickEnabled="False"
                                                     Value="{Binding SelectedShape.Hatch.Stepover, Mode=TwoWay}"
                                                     Margin="0,4,0,8" />

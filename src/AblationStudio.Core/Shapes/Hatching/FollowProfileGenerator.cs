@@ -10,7 +10,7 @@ public static class FollowProfileGenerator
         ref ToolpathPoint? currentPosition)
     {
         var segments = new List<ToolpathSegment>();
-        float stepover = MathF.Max(0.001f, settings.Stepover);
+        float stepover = MathF.Max(HatchSettings.MinStepover, settings.Stepover);
         int layerId = shape.LayerId;
         float z = shape.PositionZ;
 
