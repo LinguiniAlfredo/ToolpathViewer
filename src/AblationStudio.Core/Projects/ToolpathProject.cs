@@ -7,7 +7,7 @@ public sealed class ToolpathProject
     public const string CurrentSchemaVersion = "1.0";
     public const string ProjectExtension = ".abs";
     public const string ProjectFileFilter = "Ablation Studio Project (*.abs)|*.abs|All Files (*.*)|*.*";
-    public const string MachineFileFilter = "All Supported Toolpaths (*.h;*.txt;*.cls)|*.h;*.txt;*.cls|Cutter Location File (*.cls)|*.cls|Laser Toolpath (*.h)|*.h|Text Files (*.txt)|*.txt|All Files (*.*)|*.*";
+    public const string MachineFileFilter = "Toolpath File (*.h)|*.h|All Files (*.*)|*.*";
 
     public string SchemaVersion { get; set; } = CurrentSchemaVersion;
     public string Name { get; set; } = "Untitled";

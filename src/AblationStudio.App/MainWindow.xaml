@@ -93,20 +93,20 @@
                         </MenuItem.Icon>
                     </MenuItem>
                     <Separator />
-                    <MenuItem Header="_Open Machine File for Simulation (.h, .txt)..."
-                              Command="{Binding OpenMachineFileCommand}">
+                    <MenuItem Header="_Open Toolpath File (.h)..."
+                              Command="{Binding OpenToolpathFileCommand}">
                         <MenuItem.Icon>
                             <ui:SymbolIcon Symbol="PlayCircle24" />
                         </MenuItem.Icon>
                     </MenuItem>
                     <MenuItem Header="_Import Contour Shape (.cls)..."
                               InputGestureText="Ctrl+I"
-                              Command="{Binding ImportMachineFileCommand}">
+                              Command="{Binding ImportContourShapeCommand}">
                         <MenuItem.Icon>
                             <ui:SymbolIcon Symbol="ArrowImport24" />
                         </MenuItem.Icon>
                     </MenuItem>
-                    <MenuItem Header="_Export Machine File (.h)..."
+                    <MenuItem Header="_Export Toolpath File (.h)..."
                               InputGestureText="Ctrl+E"
                               Command="{Binding ExportMachineFileCommand}">
                         <MenuItem.Icon>
@@ -328,10 +328,10 @@
                     </StackPanel>
                 </ui:Button>
 
-                <!-- Primary Action: Open Project / File Button -->
+                <!-- Primary Action: Open Project Button -->
                 <ui:Button Appearance="Primary"
                            Command="{Binding OpenProjectCommand}"
-                           ToolTip="Open Project or Machine File (*.abs, *.h) [Ctrl+O]"
+                           ToolTip="Open Project (*.abs) [Ctrl+O]"
                            Margin="0,0,6,0">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="FolderOpen24" Margin="0,0,6,0" />
@@ -353,7 +353,7 @@
                 <!-- Export Machine File Button -->
                 <ui:Button Appearance="Secondary"
                            Command="{Binding ExportMachineFileCommand}"
-                           ToolTip="Export Machine File (*.h) [Ctrl+E]"
+                           ToolTip="Export Toolpath File (*.h) [Ctrl+E]"
                            Margin="0,0,6,0">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="ArrowExportUp24" Margin="0,0,6,0" />
@@ -361,9 +361,9 @@
                     </StackPanel>
                 </ui:Button>
 
-                <!-- Import Machine File Button -->
+                <!-- Import Contour Shape Button -->
                 <ui:Button Appearance="Secondary"
-                           Command="{Binding ImportMachineFileCommand}"
+                           Command="{Binding ImportContourShapeCommand}"
                            ToolTip="Import Contour Shape (*.cls) into Current Project [Ctrl+I]"
                            Margin="0,0,12,0">
                     <StackPanel Orientation="Horizontal">

@@ -456,8 +456,10 @@ public sealed class MainViewModel : ObservableObject
     public ICommand SaveProjectAsCommand { get; }
     public ICommand OpenProjectCommand { get; }
     public ICommand OpenMachineFileCommand { get; }
+    public ICommand OpenToolpathFileCommand => OpenMachineFileCommand;
     public ICommand ExportMachineFileCommand { get; }
     public ICommand ImportMachineFileCommand { get; }
+    public ICommand ImportContourShapeCommand => ImportMachineFileCommand;
     public ICommand FitViewCommand { get; }
     public ICommand SetPresetCommand { get; }
     public ICommand ToggleThemeCommand { get; }
@@ -768,18 +770,21 @@ public sealed class MainViewModel : ObservableObject
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Open Project or Machine File",
-            Filter = "All Supported Files (*.abs;*.h;*.txt;*.cls)|*.abs;*.h;*.txt;*.cls|" +
-                     "Ablation Studio Project (*.abs)|*.abs|" +
-                     "Laser Toolpath (*.h;*.txt)|*.h;*.txt|" +
-                     "Cutter Location Toolpath (*.cls)|*.cls|" +
-                     "All Files (*.*)|*.*",
+            Title = "Open Project",
+            Filter = "Ablation Studio Project (*.abs)|*.abs",
+            DefaultExt = ToolpathProject.ProjectExtension,
             InitialDirectory = @"c:\Users\m_del\Source\vibe_test\example_toolpaths"
         };
 
         if (dialog.ShowDialog() == true)
         {
-            await OpenFileOrProjectAsync(dialog.FileName);
+            if (!dialog.FileName.EndsWith(ToolpathProject.ProjectExtension, StringComparison.OrdinalIgnoreCase))
+            {
+                StatusText = "Open Project only accepts .abs project files.";
+                return;
+            }
+
+            await LoadProjectFileAsync(dialog.FileName);
         }
     }
 
@@ -810,8 +815,9 @@ public sealed class MainViewModel : ObservableObject
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Open Machine Toolpath for Simulation",
-            Filter = "Machine Toolpaths (*.h;*.txt)|*.h;*.txt|Heidenhain Toolpath (*.h)|*.h|Text Files (*.txt)|*.txt|All Files (*.*)|*.*",
+            Title = "Open Toolpath File",
+            Filter = "Toolpath Files (*.h)|*.h|All Files (*.*)|*.*",
+            DefaultExt = ".h",
             InitialDirectory = @"c:\Users\m_del\Source\vibe_test\example_toolpaths"
         };
 
@@ -899,14 +905,21 @@ public sealed class MainViewModel : ObservableObject
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Import Contour Shape or Machine File",
-            Filter = "Cutter Location File (*.cls)|*.cls|Machine Toolpaths (*.h;*.txt)|*.h;*.txt|All Supported Files (*.cls;*.h;*.txt)|*.cls;*.h;*.txt|All Files (*.*)|*.*",
+            Title = "Import Contour Shape",
+            Filter = "Cutter Location File (*.cls)|*.cls",
+            DefaultExt = ".cls",
             InitialDirectory = @"c:\Users\m_del\Source\vibe_test\example_toolpaths"
         };
 
         if (dialog.ShowDialog() == true)
         {
-            await ImportMachineFileAsync(dialog.FileName);
+            if (!dialog.FileName.EndsWith(".cls", StringComparison.OrdinalIgnoreCase))
+            {
+                StatusText = "Import Contour Shape only accepts .cls files.";
+                return;
+            }
+
+            await ImportContourShapeAsync(dialog.FileName);
         }
     }
 
@@ -919,14 +932,13 @@ public sealed class MainViewModel : ObservableObject
         }
 
         string ext = Path.GetExtension(filePath).ToLowerInvariant();
-        if (ext is ".cls")
+        if (ext is not ".cls")
         {
-            await ImportContourShapeAsync(filePath);
+            StatusText = "Import Contour Shape only accepts .cls files.";
+            return;
         }
-        else
-        {
-            await LoadMachineFileAsync(filePath);
-        }
+
+        await ImportContourShapeAsync(filePath);
     }
 
     public async Task ImportContourShapeAsync(string filePath)
@@ -1138,7 +1150,7 @@ public sealed class MainViewModel : ObservableObject
     {
         var dialog = new SaveFileDialog
         {
-            Title = "Export Machine Toolpath File",
+            Title = "Export Toolpath File",
             Filter = ToolpathProject.MachineFileFilter,
             DefaultExt = ".h",
             FileName = string.IsNullOrEmpty(ProjectName) || ProjectName == "Untitled" ? "CustomShapes.h" : $"{ProjectName}.h"
