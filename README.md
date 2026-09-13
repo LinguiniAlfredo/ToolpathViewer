@@ -1,6 +1,6 @@
 # Ablation Studio
 
-A modern, high-performance Laser Ablation Studio & 3D Toolpath Viewer built with WPF, .NET 10, OpenTK, and WPF-UI.
+A modern, high-performance Laser Ablation Toolpath Editor built with WPF, .NET 10, OpenTK, and WPF-UI.
 
 ## Requirements
 
