@@ -9,6 +9,7 @@ using AblationStudio.Core.Models;
 using AblationStudio.Core.Shapes;
 using AblationStudio.Rendering;
 using AblationStudio.Rendering.Camera;
+using AblationStudio.Rendering.Renderers;
 using MouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
 using MouseWheelEventArgs = System.Windows.Input.MouseWheelEventArgs;
 
@@ -22,6 +23,15 @@ public partial class OpenGLViewport : UserControl
     private bool _isPanning;
     private bool _isDrawing;
     private bool _isDraggingShape;
+    private bool _isResizingShape;
+    private bool _isRotatingShape;
+    private int _resizeHandleIndex = -1;
+    private Vector2 _resizeAnchor;
+    private Vector2 _resizeInitialDir;
+    private float _resizeInitialDistance;
+    private Vector2 _rotateCenter;
+    private float _rotateStartAngleRad;
+    private ToolpathShape? _dragSnapshotShape;
     private Vector3 _drawStartPoint;
     private Vector3 _lastShapeHitPoint;
     private ToolpathShape? _previewShape;
@@ -288,14 +298,69 @@ public partial class OpenGLViewport : UserControl
                     float fovRad = MathHelper.DegreesToRadians(_renderer.Camera.FieldOfViewDegrees);
                     float worldHeight = 2.0f * _renderer.Camera.Distance * MathF.Tan(fovRad * 0.5f);
                     float worldPerPixel = h > 0 ? (worldHeight / h) : 0.05f;
-                    float hitTolerance = MathF.Max(0.8f, 10.0f * worldPerPixel);
 
+                    // 1. Check handles on the currently selected shape first
+                    if (ShapeDocument.SelectedShape is not null)
+                    {
+                        var selShape = ShapeDocument.SelectedShape;
+                        var (corners, rotHandle, handleRadius) = ShapeOverlayRenderer.GetHandleGeometry(selShape);
+                        float handleHitRadius = MathF.Max(handleRadius * 1.5f, 10.0f * worldPerPixel);
+                        var hit2D = new Vector2(hitPoint.X, hitPoint.Y);
+
+                        // Rotation handle
+                        if (Vector2.Distance(hit2D, new Vector2(rotHandle.X, rotHandle.Y)) <= handleHitRadius)
+                        {
+                            _isRotatingShape = true;
+                            BoundingBox3D bounds = selShape.GetBounds();
+                            _rotateCenter = new Vector2((bounds.MinX + bounds.MaxX) * 0.5f, (bounds.MinY + bounds.MaxY) * 0.5f);
+                            _rotateStartAngleRad = MathF.Atan2(hitPoint.Y - _rotateCenter.Y, hitPoint.X - _rotateCenter.X);
+                            _dragSnapshotShape = selShape.Clone();
+                            ShapeDocument.IsDragging = true;
+                            Cursor = Cursors.Hand;
+                            RootGrid.CaptureMouse();
+                            e.Handled = true;
+                            return;
+                        }
+
+                        // Corner resize handles: 0: BL, 1: BR, 2: TR, 3: TL
+                        for (int i = 0; i < corners.Length; i++)
+                        {
+                            if (Vector2.Distance(hit2D, new Vector2(corners[i].X, corners[i].Y)) <= handleHitRadius)
+                            {
+                                _isResizingShape = true;
+                                _resizeHandleIndex = i;
+                                int oppIdx = (i + 2) % 4;
+                                _resizeAnchor = new Vector2(corners[oppIdx].X, corners[oppIdx].Y);
+                                Vector2 fromAnchor = hit2D - _resizeAnchor;
+                                _resizeInitialDistance = fromAnchor.Length;
+                                if (_resizeInitialDistance < 1e-4f)
+                                {
+                                    _resizeInitialDistance = 0.001f;
+                                    _resizeInitialDir = Vector2.UnitX;
+                                }
+                                else
+                                {
+                                    _resizeInitialDir = Vector2.Normalize(fromAnchor);
+                                }
+                                _dragSnapshotShape = selShape.Clone();
+                                ShapeDocument.IsDragging = true;
+                                Cursor = (i == 0 || i == 2) ? Cursors.SizeNESW : Cursors.SizeNWSE;
+                                RootGrid.CaptureMouse();
+                                e.Handled = true;
+                                return;
+                            }
+                        }
+                    }
+
+                    // 2. Shape body hit test
+                    float hitTolerance = MathF.Max(0.8f, 10.0f * worldPerPixel);
                     ToolpathShape? hitShape = ShapeDocument.HitTest(hitPoint.X, hitPoint.Y, hitTolerance);
                     if (hitShape is not null)
                     {
                         ShapeDocument.SelectedShape = hitShape;
                         ShapeDocument.IsDragging = true;
                         _isDraggingShape = true;
+                        Cursor = Cursors.SizeAll;
                         if (_renderer.Camera.IntersectRayPlaneZ(rayOrigin, rayDir, hitShape.PositionZ, out Vector3 shapeHit))
                         {
                             _lastShapeHitPoint = shapeHit;
@@ -313,6 +378,7 @@ public partial class OpenGLViewport : UserControl
                     {
                         // Deselect if clicking on empty space
                         ShapeDocument.SelectedShape = null;
+                        Cursor = Cursors.Arrow;
                         GlSurface.InvalidateVisual();
                     }
                 }
@@ -408,6 +474,66 @@ public partial class OpenGLViewport : UserControl
             return;
         }
 
+        if (_isRotatingShape && ShapeDocument?.SelectedShape is not null && _dragSnapshotShape is not null)
+        {
+            var (rayOrigin, rayDir) = _renderer.Camera.ScreenPointToRay(
+                (float)currentPos.X, (float)currentPos.Y, w, h);
+            float planeZ = ShapeDocument.SelectedShape.PositionZ;
+
+            if (_renderer.Camera.IntersectRayPlaneZ(rayOrigin, rayDir, planeZ, out Vector3 hitPoint))
+            {
+                float currentAngleRad = MathF.Atan2(hitPoint.Y - _rotateCenter.Y, hitPoint.X - _rotateCenter.X);
+                float deltaAngleRad = currentAngleRad - _rotateStartAngleRad;
+                float deltaAngleDeg = deltaAngleRad * (180f / MathF.PI);
+
+                if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+                {
+                    deltaAngleDeg = MathF.Round(deltaAngleDeg / 15f) * 15f;
+                }
+
+                var selShape = ShapeDocument.SelectedShape;
+                selShape.CopyTransformFrom(_dragSnapshotShape);
+                selShape.Rotate(deltaAngleDeg, _rotateCenter.X, _rotateCenter.Y);
+                GlSurface.InvalidateVisual();
+            }
+
+            _lastMousePosition = currentPos;
+            e.Handled = true;
+            return;
+        }
+
+        if (_isResizingShape && ShapeDocument?.SelectedShape is not null && _dragSnapshotShape is not null)
+        {
+            var (rayOrigin, rayDir) = _renderer.Camera.ScreenPointToRay(
+                (float)currentPos.X, (float)currentPos.Y, w, h);
+            float planeZ = ShapeDocument.SelectedShape.PositionZ;
+
+            if (_renderer.Camera.IntersectRayPlaneZ(rayOrigin, rayDir, planeZ, out Vector3 hitPoint))
+            {
+                Vector2 toCurrent = new Vector2(hitPoint.X, hitPoint.Y) - _resizeAnchor;
+                float currentDistance = toCurrent.Length;
+
+                float scaleFactor;
+                if (Vector2.Dot(toCurrent, _resizeInitialDir) <= 0f)
+                {
+                    scaleFactor = 0.05f;
+                }
+                else
+                {
+                    scaleFactor = MathF.Max(0.05f, currentDistance / _resizeInitialDistance);
+                }
+
+                var selShape = ShapeDocument.SelectedShape;
+                selShape.CopyTransformFrom(_dragSnapshotShape);
+                selShape.Scale(scaleFactor, _resizeAnchor.X, _resizeAnchor.Y);
+                GlSurface.InvalidateVisual();
+            }
+
+            _lastMousePosition = currentPos;
+            e.Handled = true;
+            return;
+        }
+
         if (_isDraggingShape && ShapeDocument?.SelectedShape is not null)
         {
             var (rayOrigin, rayDir) = _renderer.Camera.ScreenPointToRay(
@@ -448,12 +574,38 @@ public partial class OpenGLViewport : UserControl
             GlSurface.InvalidateVisual();
             e.Handled = true;
         }
+        else
+        {
+            UpdateHoverCursor(currentPos, w, h);
+        }
     }
 
     private void OnViewportMouseUp(object sender, MouseButtonEventArgs e)
     {
         if (e.LeftButton == MouseButtonState.Released)
         {
+            if (_isRotatingShape)
+            {
+                _isRotatingShape = false;
+                _dragSnapshotShape = null;
+                if (ShapeDocument is not null)
+                {
+                    ShapeDocument.IsDragging = false;
+                    ShapeDocument.NotifyDocumentChanged();
+                }
+            }
+
+            if (_isResizingShape)
+            {
+                _isResizingShape = false;
+                _dragSnapshotShape = null;
+                if (ShapeDocument is not null)
+                {
+                    ShapeDocument.IsDragging = false;
+                    ShapeDocument.NotifyDocumentChanged();
+                }
+            }
+
             if (_isDrawing && _previewShape is not null)
             {
                 _renderer.ShapeOverlay.SetPreviewShape(null);
@@ -482,6 +634,7 @@ public partial class OpenGLViewport : UserControl
             if (_isDraggingShape)
             {
                 _isDraggingShape = false;
+                _dragSnapshotShape = null;
                 if (ShapeDocument is not null)
                 {
                     ShapeDocument.IsDragging = false;
@@ -497,13 +650,94 @@ public partial class OpenGLViewport : UserControl
             _isPanning = false;
         }
 
-        if (!_isOrbiting && !_isPanning && !_isDrawing && !_isDraggingShape)
+        if (!_isOrbiting && !_isPanning && !_isDrawing && !_isDraggingShape && !_isResizingShape && !_isRotatingShape)
         {
             RootGrid.ReleaseMouseCapture();
         }
 
+        Point currentPos = e.GetPosition(RootGrid);
+        int w = (int)ActualWidth > 0 ? (int)ActualWidth : (int)GlSurface.FrameBufferWidth;
+        int h = (int)ActualHeight > 0 ? (int)ActualHeight : (int)GlSurface.FrameBufferHeight;
+        UpdateHoverCursor(currentPos, w, h);
+
         GlSurface.InvalidateVisual();
         e.Handled = true;
+    }
+
+    private void OnViewportMouseLeave(object sender, MouseEventArgs e)
+    {
+        if (!_isDraggingShape && !_isResizingShape && !_isRotatingShape && !_isOrbiting && !_isPanning)
+        {
+            Cursor = Cursors.Arrow;
+        }
+    }
+
+    private void UpdateHoverCursor(Point currentPos, int w, int h)
+    {
+        if (CurrentTool != ShapeToolType.Select)
+        {
+            Cursor = Cursors.Cross;
+            return;
+        }
+
+        if (ShapeDocument?.SelectedShape is null)
+        {
+            Cursor = Cursors.Arrow;
+            return;
+        }
+
+        var selShape = ShapeDocument.SelectedShape;
+        var (rayOrigin, rayDir) = _renderer.Camera.ScreenPointToRay(
+            (float)currentPos.X, (float)currentPos.Y, w, h);
+        float planeZ = selShape.PositionZ;
+
+        if (!_renderer.Camera.IntersectRayPlaneZ(rayOrigin, rayDir, planeZ, out Vector3 hitPoint))
+        {
+            Cursor = Cursors.Arrow;
+            return;
+        }
+
+        var (corners, rotHandle, handleRadius) = ShapeOverlayRenderer.GetHandleGeometry(selShape);
+        float fovRad = MathHelper.DegreesToRadians(_renderer.Camera.FieldOfViewDegrees);
+        float worldHeight = 2.0f * _renderer.Camera.Distance * MathF.Tan(fovRad * 0.5f);
+        float worldPerPixel = h > 0 ? (worldHeight / h) : 0.05f;
+        float hitRadius = MathF.Max(handleRadius * 1.5f, 10.0f * worldPerPixel);
+
+        var hitPt2D = new Vector2(hitPoint.X, hitPoint.Y);
+
+        // 1. Rotation handle
+        if (Vector2.Distance(hitPt2D, new Vector2(rotHandle.X, rotHandle.Y)) <= hitRadius)
+        {
+            Cursor = Cursors.Hand;
+            return;
+        }
+
+        // 2. Corner resize handles
+        // 0: BL, 2: TR -> SizeNESW
+        // 1: BR, 3: TL -> SizeNWSE
+        if (Vector2.Distance(hitPt2D, new Vector2(corners[0].X, corners[0].Y)) <= hitRadius ||
+            Vector2.Distance(hitPt2D, new Vector2(corners[2].X, corners[2].Y)) <= hitRadius)
+        {
+            Cursor = Cursors.SizeNESW;
+            return;
+        }
+
+        if (Vector2.Distance(hitPt2D, new Vector2(corners[1].X, corners[1].Y)) <= hitRadius ||
+            Vector2.Distance(hitPt2D, new Vector2(corners[3].X, corners[3].Y)) <= hitRadius)
+        {
+            Cursor = Cursors.SizeNWSE;
+            return;
+        }
+
+        // 3. Shape body
+        float shapeHitTolerance = MathF.Max(0.8f, 10.0f * worldPerPixel);
+        if (ShapeDocument.HitTest(hitPoint.X, hitPoint.Y, shapeHitTolerance) == selShape)
+        {
+            Cursor = Cursors.SizeAll;
+            return;
+        }
+
+        Cursor = Cursors.Arrow;
     }
 
     private void OnViewportMouseWheel(object sender, MouseWheelEventArgs e)

@@ -417,6 +417,37 @@ public sealed class TextShape : ToolpathShape, IContourShape
         FontSize = MathF.Max(0.1f, FontSize * factor);
     }
 
+    public override void Rotate(float deltaAngleDegrees, float originX, float originY)
+    {
+        var (newX, newY) = RotatePoint(PositionX, PositionY, originX, originY, deltaAngleDegrees);
+        PositionX = newX;
+        PositionY = newY;
+        RotationDegrees = (RotationDegrees + deltaAngleDegrees % 360f + 360f) % 360f;
+    }
+
+    public override void CopyTransformFrom(ToolpathShape source)
+    {
+        base.CopyTransformFrom(source);
+        if (source is TextShape text)
+        {
+            _text = text._text;
+            _fontFamily = text._fontFamily;
+            _fontSize = text._fontSize;
+            _isBold = text._isBold;
+            _isItalic = text._isItalic;
+            _letterSpacing = text._letterSpacing;
+            _rotationDegrees = text._rotationDegrees;
+            OnPropertyChanged(nameof(Text));
+            OnPropertyChanged(nameof(FontFamily));
+            OnPropertyChanged(nameof(FontSize));
+            OnPropertyChanged(nameof(IsBold));
+            OnPropertyChanged(nameof(IsItalic));
+            OnPropertyChanged(nameof(LetterSpacing));
+            OnPropertyChanged(nameof(RotationDegrees));
+            RebuildBaseContours();
+        }
+    }
+
     public override ToolpathShape Clone()
     {
         var copy = new TextShape(

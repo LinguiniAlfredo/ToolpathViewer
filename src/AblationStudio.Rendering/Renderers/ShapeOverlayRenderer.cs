@@ -30,6 +30,31 @@ public sealed class ShapeOverlayRenderer : IDisposable
     public static readonly Vector4 PreviewColor = new(1.0f, 0.9f, 0.2f, 1.0f);     // Bright Yellow
     public static readonly Vector4 SelectionColor = new(0.0f, 0.65f, 1.0f, 0.9f);  // Cyan Selection Frame
     public static readonly Vector4 HandleColor = new(1.0f, 1.0f, 1.0f, 0.95f);      // Crisp White Corner Handles
+    public static readonly Vector4 RotateHandleColor = new(0.2f, 0.9f, 0.4f, 0.95f); // Vibrant Emerald Green Rotation Handle
+
+    public static (ToolpathPoint[] Corners, ToolpathPoint RotHandle, float HandleRadius) GetHandleGeometry(ToolpathShape shape)
+    {
+        BoundingBox3D bounds = shape.GetBounds();
+        float z = shape.PositionZ;
+
+        var corners = new ToolpathPoint[]
+        {
+            new(bounds.MinX, bounds.MinY, z), // 0: Bottom-Left
+            new(bounds.MaxX, bounds.MinY, z), // 1: Bottom-Right
+            new(bounds.MaxX, bounds.MaxY, z), // 2: Top-Right
+            new(bounds.MinX, bounds.MaxY, z)  // 3: Top-Left
+        };
+
+        float extent = MathF.Max(bounds.SizeX, bounds.SizeY);
+        float minExtent = MathF.Min(bounds.SizeX, bounds.SizeY);
+        float refSize = minExtent > 0.01f ? minExtent : extent;
+        float handleRadius = Math.Clamp(refSize * 0.04f, 0.25f, 2.5f);
+        float stemLength = MathF.Max(1.2f, handleRadius * 3.5f);
+        float topCenterX = (bounds.MinX + bounds.MaxX) * 0.5f;
+        var rotHandle = new ToolpathPoint(topCenterX, bounds.MaxY + stemLength, z);
+
+        return (corners, rotHandle, handleRadius);
+    }
 
     public void Initialize()
     {
@@ -131,28 +156,37 @@ public sealed class ShapeOverlayRenderer : IDisposable
         BoundingBox3D bounds = shape.GetBounds();
         float z = shape.PositionZ;
 
+        var (corners, rotHandle, handleRadius) = GetHandleGeometry(shape);
+
         // Bounding box frame lines
-        var p0 = new ToolpathPoint(bounds.MinX, bounds.MinY, z);
-        var p1 = new ToolpathPoint(bounds.MaxX, bounds.MinY, z);
-        var p2 = new ToolpathPoint(bounds.MaxX, bounds.MaxY, z);
-        var p3 = new ToolpathPoint(bounds.MinX, bounds.MaxY, z);
+        var p0 = corners[0];
+        var p1 = corners[1];
+        var p2 = corners[2];
+        var p3 = corners[3];
 
         AddSegment(boxLines, p0, p1, SelectionColor);
         AddSegment(boxLines, p1, p2, SelectionColor);
         AddSegment(boxLines, p2, p3, SelectionColor);
         AddSegment(boxLines, p3, p0, SelectionColor);
 
+        // Stem line connecting top-edge midpoint to rotation handle
+        float topCenterX = (bounds.MinX + bounds.MaxX) * 0.5f;
+        var topMid = new ToolpathPoint(topCenterX, bounds.MaxY, z);
+        AddSegment(boxLines, topMid, rotHandle, SelectionColor);
+
         // Center cross marker
         var center = new ToolpathPoint(shape.PositionX, shape.PositionY, z);
         float markerSize = MathF.Max(0.5f, MathF.Min(bounds.SizeX, bounds.SizeY) * 0.1f);
         AddCross(boxLines, center, SelectionColor, markerSize);
 
-        // Corner & Edge Handles
-        float handleRadius = MathF.Max(0.2f, MathF.Min(bounds.SizeX, bounds.SizeY) * 0.04f);
+        // Corner Handles (White)
         AddHandleQuad(handleTriangles, p0.X, p0.Y, z, handleRadius, HandleColor);
         AddHandleQuad(handleTriangles, p1.X, p1.Y, z, handleRadius, HandleColor);
         AddHandleQuad(handleTriangles, p2.X, p2.Y, z, handleRadius, HandleColor);
         AddHandleQuad(handleTriangles, p3.X, p3.Y, z, handleRadius, HandleColor);
+
+        // Rotation Handle (Green)
+        AddHandleQuad(handleTriangles, rotHandle.X, rotHandle.Y, z, handleRadius, RotateHandleColor);
 
         // Upload
         UploadData(_selectionVao, _selectionVbo, boxLines);

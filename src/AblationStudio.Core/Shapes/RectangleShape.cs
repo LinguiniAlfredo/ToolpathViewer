@@ -106,6 +106,29 @@ public sealed class RectangleShape : ToolpathShape
         OnShapeModified();
     }
 
+    public override void Rotate(float deltaAngleDegrees, float originX, float originY)
+    {
+        var (newX, newY) = RotatePoint(PositionX, PositionY, originX, originY, deltaAngleDegrees);
+        PositionX = newX;
+        PositionY = newY;
+        RotationDegrees = (RotationDegrees + deltaAngleDegrees % 360f + 360f) % 360f;
+    }
+
+    public override void CopyTransformFrom(ToolpathShape source)
+    {
+        base.CopyTransformFrom(source);
+        if (source is RectangleShape rect)
+        {
+            _width = rect._width;
+            _height = rect._height;
+            _rotationDegrees = rect._rotationDegrees;
+            OnPropertyChanged(nameof(Width));
+            OnPropertyChanged(nameof(Height));
+            OnPropertyChanged(nameof(RotationDegrees));
+            OnShapeModified();
+        }
+    }
+
     public override bool HitTest(float worldX, float worldY, float tolerance)
     {
         float dx = worldX - PositionX;

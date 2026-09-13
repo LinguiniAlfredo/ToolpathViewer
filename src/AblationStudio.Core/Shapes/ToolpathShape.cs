@@ -233,6 +233,40 @@ public abstract class ToolpathShape : INotifyPropertyChanged
 
     public abstract void Scale(float factor, float originX, float originY);
 
+    public abstract void Rotate(float deltaAngleDegrees, float originX, float originY);
+
+    public virtual void CopyTransformFrom(ToolpathShape source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        _positionX = source._positionX;
+        _positionY = source._positionY;
+        _positionZ = source._positionZ;
+        _layerId = source._layerId;
+        _cutType = source._cutType;
+        InvalidateHatchCache();
+        OnPropertyChanged(nameof(PositionX));
+        OnPropertyChanged(nameof(PositionY));
+        OnPropertyChanged(nameof(PositionZ));
+        OnPropertyChanged(nameof(LayerId));
+        OnPropertyChanged(nameof(CutType));
+        OnShapeModified();
+    }
+
+    public static (float X, float Y) RotatePoint(float x, float y, float originX, float originY, float deltaAngleDegrees)
+    {
+        if (MathF.Abs(deltaAngleDegrees) < 1e-6f)
+        {
+            return (x, y);
+        }
+
+        float rad = deltaAngleDegrees * (MathF.PI / 180f);
+        float cos = MathF.Cos(rad);
+        float sin = MathF.Sin(rad);
+        float dx = x - originX;
+        float dy = y - originY;
+        return (originX + dx * cos - dy * sin, originY + dx * sin + dy * cos);
+    }
+
     public abstract ToolpathShape Clone();
 
     protected void OnShapeModified()

@@ -541,6 +541,132 @@ public sealed class ShapeTests
         thread.Start();
         thread.Join();
     }
+
+    [Fact]
+    public void RectangleShape_Rotate_And_CopyTransformFrom_WorkAccurately()
+    {
+        var rect = new RectangleShape(10f, 10f, 0f, 20f, 10f, 0f);
+        var snapshot = (RectangleShape)rect.Clone();
+
+        // Rotate 90 degrees around its center (10, 10)
+        rect.Rotate(90f, 10f, 10f);
+        Assert.Equal(10f, rect.PositionX, precision: 3);
+        Assert.Equal(10f, rect.PositionY, precision: 3);
+        Assert.Equal(90f, rect.RotationDegrees, precision: 3);
+
+        // Restore using CopyTransformFrom
+        rect.CopyTransformFrom(snapshot);
+        Assert.Equal(0f, rect.RotationDegrees, precision: 3);
+        Assert.Equal(20f, rect.Width, precision: 3);
+        Assert.Equal(10f, rect.Height, precision: 3);
+    }
+
+    [Fact]
+    public void LineShape_RotateAroundCenter_RotatesLineEndPoints()
+    {
+        // Horizontal line from (0, 10) to (20, 10), length = 20, center = (10, 10)
+        var line = new LineShape(0f, 10f, 0f, 20f, 10f, 0f);
+
+        // Rotate 90 degrees around center (10, 10)
+        line.Rotate(90f, 10f, 10f);
+
+        // Should become vertical: Start at (10, 0), End at (10, 20)
+        Assert.Equal(10f, line.PositionX, precision: 2);
+        Assert.Equal(0f, line.PositionY, precision: 2);
+        Assert.Equal(10f, line.EndX, precision: 2);
+        Assert.Equal(20f, line.EndY, precision: 2);
+        Assert.Equal(20f, line.Length, precision: 2);
+
+        // CopyTransformFrom restores original line
+        var original = new LineShape(0f, 10f, 0f, 20f, 10f, 0f);
+        line.CopyTransformFrom(original);
+        Assert.Equal(0f, line.PositionX, precision: 2);
+        Assert.Equal(10f, line.PositionY, precision: 2);
+        Assert.Equal(20f, line.EndX, precision: 2);
+        Assert.Equal(10f, line.EndY, precision: 2);
+    }
+
+    [Fact]
+    public void CircleShape_RotateAroundOffsetOrigin_OrbitsOrigin()
+    {
+        // Circle at (10, 0) rotated 90 degrees around (0, 0) -> becomes (0, 10)
+        var circle = new CircleShape(10f, 0f, 0f, 5f);
+        circle.Rotate(90f, 0f, 0f);
+
+        Assert.Equal(0f, circle.PositionX, precision: 2);
+        Assert.Equal(10f, circle.PositionY, precision: 2);
+        Assert.Equal(5f, circle.Radius, precision: 2);
+
+        var snapshot = new CircleShape(10f, 0f, 0f, 5f);
+        circle.CopyTransformFrom(snapshot);
+        Assert.Equal(10f, circle.PositionX, precision: 2);
+        Assert.Equal(0f, circle.PositionY, precision: 2);
+    }
+
+    [Fact]
+    public void PolygonShape_RotateAndCopyTransformFrom_WorksCorrectly()
+    {
+        var poly = new PolygonShape(0f, 0f, 0f, 10f, 6, 0f);
+        poly.Rotate(30f, 0f, 0f);
+        Assert.Equal(30f, poly.RotationDegrees, precision: 3);
+
+        var copy = new PolygonShape(5f, 5f, 0f, 15f, 5, 0f);
+        poly.CopyTransformFrom(copy);
+        Assert.Equal(5f, poly.PositionX, precision: 3);
+        Assert.Equal(5f, poly.PositionY, precision: 3);
+        Assert.Equal(15f, poly.Radius, precision: 3);
+        Assert.Equal(5, poly.Sides);
+    }
+
+    [Fact]
+    public void TextShape_RotateAndCopyTransformFrom_PreservesState()
+    {
+        var text = new TextShape(0f, 0f, 0f, "TEST", "Arial", 12f);
+        text.Rotate(45f, 0f, 0f);
+        Assert.Equal(45f, text.RotationDegrees, precision: 3);
+
+        var copy = new TextShape(10f, 20f, 0f, "NEW", "Arial", 16f);
+        text.CopyTransformFrom(copy);
+        Assert.Equal(10f, text.PositionX, precision: 3);
+        Assert.Equal(20f, text.PositionY, precision: 3);
+        Assert.Equal("NEW", text.Text);
+        Assert.Equal(16f, text.FontSize, precision: 3);
+    }
+
+    [Fact]
+    public void PathShape_RotateAndCopyTransformFrom_TransformsContourPoints()
+    {
+        var contour = new PathContour([new ToolpathPoint(10f, 0f, 0f), new ToolpathPoint(20f, 0f, 0f)], isClosed: false);
+        var path = new PathShape(0f, 0f, 0f, [contour]);
+
+        // Rotate 90 degrees around (0,0)
+        path.Rotate(90f, 0f, 0f);
+
+        Assert.Equal(1, path.ContoursCount);
+        ToolpathPoint pt0 = path.Contours[0].LocalPoints[0];
+        Assert.Equal(0f, pt0.X, precision: 2);
+        Assert.Equal(10f, pt0.Y, precision: 2);
+    }
+
+    [Fact]
+    public void ShapeOverlayRenderer_GetHandleGeometry_ReturnsValidHandles()
+    {
+        var rect = new RectangleShape(0f, 0f, 0f, 20f, 10f);
+        var (corners, rotHandle, handleRadius) = AblationStudio.Rendering.Renderers.ShapeOverlayRenderer.GetHandleGeometry(rect);
+
+        Assert.Equal(4, corners.Length);
+        // Bottom-Left
+        Assert.Equal(-10f, corners[0].X, precision: 2);
+        Assert.Equal(-5f, corners[0].Y, precision: 2);
+        // Top-Right
+        Assert.Equal(10f, corners[2].X, precision: 2);
+        Assert.Equal(5f, corners[2].Y, precision: 2);
+
+        // Rotation handle should be at top center (X=0) and above the top edge (Y > 5)
+        Assert.Equal(0f, rotHandle.X, precision: 2);
+        Assert.True(rotHandle.Y > 5.0f, $"Rotation handle Y was {rotHandle.Y}, expected > 5.0");
+        Assert.True(handleRadius > 0f);
+    }
 }
 
 

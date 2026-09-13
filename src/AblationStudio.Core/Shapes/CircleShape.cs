@@ -90,6 +90,28 @@ public sealed class CircleShape : ToolpathShape
         OnShapeModified();
     }
 
+    public override void Rotate(float deltaAngleDegrees, float originX, float originY)
+    {
+        var (newX, newY) = RotatePoint(PositionX, PositionY, originX, originY, deltaAngleDegrees);
+        PositionX = newX;
+        PositionY = newY;
+    }
+
+    public override void CopyTransformFrom(ToolpathShape source)
+    {
+        base.CopyTransformFrom(source);
+        if (source is CircleShape circle)
+        {
+            _radius = circle._radius;
+            _segmentsCount = circle._segmentsCount;
+            OnPropertyChanged(nameof(Radius));
+            OnPropertyChanged(nameof(Diameter));
+            OnPropertyChanged(nameof(SegmentsCount));
+            InvalidateHatchCache();
+            OnShapeModified();
+        }
+    }
+
     public override bool HitTest(float worldX, float worldY, float tolerance)
     {
         float dist = MathF.Sqrt(MathF.Pow(worldX - PositionX, 2) + MathF.Pow(worldY - PositionY, 2));

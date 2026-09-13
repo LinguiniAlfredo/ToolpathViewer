@@ -59,6 +59,26 @@ public sealed class PathContour
         }
     }
 
+    public void Rotate(float angleDegrees)
+    {
+        if (MathF.Abs(angleDegrees) < 1e-6f)
+        {
+            return;
+        }
+
+        float rad = angleDegrees * (MathF.PI / 180f);
+        float cos = MathF.Cos(rad);
+        float sin = MathF.Sin(rad);
+
+        for (int i = 0; i < _localPoints.Count; i++)
+        {
+            ToolpathPoint p = _localPoints[i];
+            float rx = p.X * cos - p.Y * sin;
+            float ry = p.X * sin + p.Y * cos;
+            _localPoints[i] = new ToolpathPoint(rx, ry, p.Z);
+        }
+    }
+
     public BoundingBox3D GetLocalBounds()
     {
         if (_localPoints.Count == 0)

@@ -96,6 +96,30 @@ public sealed class PolygonShape : ToolpathShape
         OnShapeModified();
     }
 
+    public override void Rotate(float deltaAngleDegrees, float originX, float originY)
+    {
+        var (newX, newY) = RotatePoint(PositionX, PositionY, originX, originY, deltaAngleDegrees);
+        PositionX = newX;
+        PositionY = newY;
+        RotationDegrees = (RotationDegrees + deltaAngleDegrees % 360f + 360f) % 360f;
+    }
+
+    public override void CopyTransformFrom(ToolpathShape source)
+    {
+        base.CopyTransformFrom(source);
+        if (source is PolygonShape poly)
+        {
+            _radius = poly._radius;
+            _sides = poly._sides;
+            _rotationDegrees = poly._rotationDegrees;
+            OnPropertyChanged(nameof(Radius));
+            OnPropertyChanged(nameof(Sides));
+            OnPropertyChanged(nameof(RotationDegrees));
+            InvalidateHatchCache();
+            OnShapeModified();
+        }
+    }
+
     public override bool HitTest(float worldX, float worldY, float tolerance)
     {
         float dist = MathF.Sqrt(MathF.Pow(worldX - PositionX, 2) + MathF.Pow(worldY - PositionY, 2));

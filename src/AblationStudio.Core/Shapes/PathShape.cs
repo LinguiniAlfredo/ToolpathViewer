@@ -276,6 +276,40 @@ public sealed class PathShape : ToolpathShape, IContourShape
         OnShapeModified();
     }
 
+    public override void Rotate(float deltaAngleDegrees, float originX, float originY)
+    {
+        var (newX, newY) = RotatePoint(PositionX, PositionY, originX, originY, deltaAngleDegrees);
+        PositionX = newX;
+        PositionY = newY;
+
+        foreach (PathContour contour in _contours)
+        {
+            contour.Rotate(deltaAngleDegrees);
+        }
+
+        InvalidateHatchCache();
+        OnShapeModified();
+    }
+
+    public override void CopyTransformFrom(ToolpathShape source)
+    {
+        base.CopyTransformFrom(source);
+        if (source is PathShape path)
+        {
+            _contours.Clear();
+            foreach (PathContour c in path._contours)
+            {
+                _contours.Add(c.Clone());
+            }
+            InvalidateHatchCache();
+            OnPropertyChanged(nameof(ContoursCount));
+            OnPropertyChanged(nameof(TotalPointsCount));
+            OnPropertyChanged(nameof(TotalPerimeterLength));
+            OnPropertyChanged(nameof(IsClosed));
+            OnShapeModified();
+        }
+    }
+
     public override ToolpathShape Clone()
     {
         var clonedContours = new List<PathContour>(_contours.Count);

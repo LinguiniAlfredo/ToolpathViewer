@@ -15,7 +15,8 @@
           PreviewMouseDown="OnViewportMouseDown"
           PreviewMouseMove="OnViewportMouseMove"
           PreviewMouseUp="OnViewportMouseUp"
-          PreviewMouseWheel="OnViewportMouseWheel">
+          PreviewMouseWheel="OnViewportMouseWheel"
+          MouseLeave="OnViewportMouseLeave">
 
         <!-- OpenTK Hardware-Accelerated OpenGL Direct3D Surface -->
         <gl:GLWpfControl x:Name="GlSurface"

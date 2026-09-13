@@ -108,6 +108,33 @@ public sealed class LineShape : ToolpathShape
         OnShapeModified();
     }
 
+    public override void Rotate(float deltaAngleDegrees, float originX, float originY)
+    {
+        var (newStartX, newStartY) = RotatePoint(PositionX, PositionY, originX, originY, deltaAngleDegrees);
+        var (newEndX, newEndY) = RotatePoint(EndX, EndY, originX, originY, deltaAngleDegrees);
+        PositionX = newStartX;
+        PositionY = newStartY;
+        EndX = newEndX;
+        EndY = newEndY;
+    }
+
+    public override void CopyTransformFrom(ToolpathShape source)
+    {
+        base.CopyTransformFrom(source);
+        if (source is LineShape line)
+        {
+            _endX = line._endX;
+            _endY = line._endY;
+            _endZ = line._endZ;
+            OnPropertyChanged(nameof(EndX));
+            OnPropertyChanged(nameof(EndY));
+            OnPropertyChanged(nameof(EndZ));
+            OnPropertyChanged(nameof(Length));
+            OnPropertyChanged(nameof(AngleDegrees));
+            OnShapeModified();
+        }
+    }
+
     public override bool HitTest(float worldX, float worldY, float tolerance)
     {
         float ax = PositionX, ay = PositionY;
