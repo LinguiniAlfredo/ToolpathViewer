@@ -222,7 +222,7 @@
                     <MenuItem Header="Show _Bounding Box"
                               IsCheckable="True"
                               IsChecked="{Binding ShowBoundingBox}" />
-                    <MenuItem Header="Show _Cut Moves (M03)"
+                    <MenuItem Header="Show _Profile Moves (M03)"
                               IsCheckable="True"
                               IsChecked="{Binding ShowCuts}" />
                     <MenuItem Header="Show _Hatch Moves (M03)"
@@ -420,29 +420,13 @@
 
                 <ToggleButton IsChecked="{Binding ShowRapids}"
                               ToolTip="Toggle Jump Positioning Moves"
-                              Margin="0,0,4,0">
+                              Margin="0,0,12,0">
                     <StackPanel Orientation="Horizontal">
                         <Border Width="8" Height="8" CornerRadius="4" Background="#FFAA00" Margin="0,0,6,0" VerticalAlignment="Center" />
                         <TextBlock Text="Jumps"
                                    Foreground="{Binding RelativeSource={RelativeSource AncestorType=ContentPresenter}, Path=(TextElement.Foreground)}" />
                     </StackPanel>
                 </ToggleButton>
-
-
-                <ToggleButton IsChecked="{Binding ShowGrid}"
-                              ToolTip="Toggle 3D Reference Grid"
-                              Margin="0,0,4,0"
-                              Content="Grid" />
-
-                <ToggleButton IsChecked="{Binding ShowAxes}"
-                              ToolTip="Toggle XYZ Orientation Gizmo"
-                              Margin="0,0,4,0"
-                              Content="Axes" />
-
-                <ToggleButton IsChecked="{Binding ShowBoundingBox}"
-                              ToolTip="Toggle 3D Bounding Box Wireframe"
-                              Margin="0,0,12,0"
-                              Content="Bounds" />
 
                 <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2,8,2" />
 
