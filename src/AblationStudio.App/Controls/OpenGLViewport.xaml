@@ -45,7 +45,7 @@
                                Margin="0,0,0,4" />
                     <StackPanel Orientation="Horizontal" Margin="0,2">
                         <TextBlock Text="Orbit: " FontWeight="SemiBold" Foreground="#CCD0D8" FontSize="11" />
-                        <TextBlock Text="Left Click + Drag" Foreground="#99A0B0" FontSize="11" />
+                        <TextBlock Text="Alt + Left Click + Drag" Foreground="#99A0B0" FontSize="11" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,2">
                         <TextBlock Text="Pan: " FontWeight="SemiBold" Foreground="#CCD0D8" FontSize="11" />
@@ -54,6 +54,10 @@
                     <StackPanel Orientation="Horizontal" Margin="0,2">
                         <TextBlock Text="Zoom: " FontWeight="SemiBold" Foreground="#CCD0D8" FontSize="11" />
                         <TextBlock Text="Mouse Scroll Wheel" Foreground="#99A0B0" FontSize="11" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                        <TextBlock Text="Box Select: " FontWeight="SemiBold" Foreground="#CCD0D8" FontSize="11" />
+                        <TextBlock Text="Left Click + Drag (Ctrl to Add)" Foreground="#99A0B0" FontSize="11" />
                     </StackPanel>
                 </StackPanel>
             </Border>

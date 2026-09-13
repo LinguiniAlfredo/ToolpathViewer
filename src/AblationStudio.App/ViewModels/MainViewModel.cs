@@ -50,7 +50,11 @@ public sealed class MainViewModel : ObservableObject
     }
 
     public ToolpathShape? SelectedShape => CustomShapes.SelectedShape;
-    public bool HasSelectedShape => SelectedShape is not null;
+    public bool HasSelectedShape => CustomShapes.SelectedShapes.Count == 1;
+    public bool HasMultiSelection => CustomShapes.SelectedShapes.Count > 1;
+    public bool HasAnySelection => CustomShapes.SelectedShapes.Count > 0;
+    public int SelectedShapeCount => CustomShapes.SelectedShapes.Count;
+    public IReadOnlyCollection<ToolpathShape> SelectedShapes => CustomShapes.SelectedShapes;
 
     public event Action<Toolpath, bool>? ToolpathLoaded;
     public event Action? RequestRender;
@@ -469,6 +473,7 @@ public sealed class MainViewModel : ObservableObject
     public ICommand ClearAllShapesCommand { get; }
     public ICommand DeselectShapeCommand { get; }
     public ICommand DuplicateSelectedShapeCommand { get; }
+    public ICommand SelectAllCommand { get; }
     public ICommand ExportToolpathCommand { get; }
 
     public MainViewModel()
@@ -499,16 +504,24 @@ public sealed class MainViewModel : ObservableObject
         {
             OnPropertyChanged(nameof(SelectedShape));
             OnPropertyChanged(nameof(HasSelectedShape));
+            OnPropertyChanged(nameof(HasMultiSelection));
+            OnPropertyChanged(nameof(HasAnySelection));
+            OnPropertyChanged(nameof(SelectedShapeCount));
+            OnPropertyChanged(nameof(SelectedShapes));
+            (DeleteSelectedShapeCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (DuplicateSelectedShapeCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (DeselectShapeCommand as RelayCommand)?.RaiseCanExecuteChanged();
             RequestRender?.Invoke();
         };
 
         CustomShapes.DocumentChanged += OnCustomShapesDocumentChanged;
 
         SelectToolCommand = new RelayCommand<ShapeToolType>(tool => ActiveTool = tool);
-        DeleteSelectedShapeCommand = new RelayCommand(ExecuteDeleteSelectedShape, () => HasSelectedShape);
+        DeleteSelectedShapeCommand = new RelayCommand(ExecuteDeleteSelectedShape, () => HasAnySelection);
         ClearAllShapesCommand = new RelayCommand(ExecuteClearAllShapes, () => CustomShapes.Shapes.Count > 0);
-        DeselectShapeCommand = new RelayCommand(() => CustomShapes.SelectedShape = null, () => HasSelectedShape);
-        DuplicateSelectedShapeCommand = new RelayCommand(ExecuteDuplicateSelectedShape, () => HasSelectedShape);
+        DeselectShapeCommand = new RelayCommand(() => CustomShapes.ClearSelection(), () => HasAnySelection);
+        DuplicateSelectedShapeCommand = new RelayCommand(ExecuteDuplicateSelectedShape, () => HasAnySelection);
+        SelectAllCommand = new RelayCommand(() => CustomShapes.SelectAll(), () => CustomShapes.Shapes.Count > 0);
 
         TogglePlaySimulationCommand = new RelayCommand(ExecuteTogglePlaySimulation, () => HasSimulation);
         StopSimulationCommand = new RelayCommand(ExecuteStopSimulation, () => HasSimulation);
@@ -1042,20 +1055,40 @@ public sealed class MainViewModel : ObservableObject
 
     private void ExecuteDeleteSelectedShape()
     {
-        if (SelectedShape is not null)
+        if (CustomShapes.SelectedShapes.Count == 1)
         {
-            ToolpathShape shape = SelectedShape;
+            ToolpathShape shape = CustomShapes.SelectedShapes.First();
             int idx = CustomShapes.Shapes.IndexOf(shape);
             CustomShapes.UndoManager.RecordAction(new DeleteShapeAction(CustomShapes, shape, idx, $"Delete {shape.Name}"));
             CustomShapes.RemoveShape(shape);
+        }
+        else if (CustomShapes.SelectedShapes.Count > 1)
+        {
+            var shapesToDelete = CustomShapes.SelectedShapes.ToList();
+            var actions = new List<IUndoableAction>();
+            foreach (ToolpathShape shape in shapesToDelete)
+            {
+                int idx = CustomShapes.Shapes.IndexOf(shape);
+                actions.Add(new DeleteShapeAction(CustomShapes, shape, idx, $"Delete {shape.Name}"));
+            }
+            CustomShapes.UndoManager.RecordAction(new CompositeAction(
+                actions,
+                $"Delete {shapesToDelete.Count} shapes",
+                CustomShapes,
+                shapesToDelete,
+                []));
+            foreach (ToolpathShape shape in shapesToDelete)
+            {
+                CustomShapes.RemoveShape(shape);
+            }
         }
     }
 
     private void ExecuteDuplicateSelectedShape()
     {
-        if (SelectedShape is not null)
+        if (CustomShapes.SelectedShapes.Count == 1)
         {
-            ToolpathShape original = SelectedShape;
+            ToolpathShape original = CustomShapes.SelectedShapes.First();
             ToolpathShape copy = original.Clone();
             copy.Translate(2.0f, 2.0f, 0f);
             EnsureUniqueShapeName(copy);
@@ -1065,6 +1098,39 @@ public sealed class MainViewModel : ObservableObject
                 copy,
                 CustomShapes.Shapes.Count - 1,
                 $"Duplicate {original.Name}"));
+        }
+        else if (CustomShapes.SelectedShapes.Count > 1)
+        {
+            var originals = CustomShapes.SelectedShapes.ToList();
+            var copies = new List<ToolpathShape>();
+            var actions = new List<IUndoableAction>();
+
+            foreach (ToolpathShape original in originals)
+            {
+                ToolpathShape copy = original.Clone();
+                copy.Translate(2.0f, 2.0f, 0f);
+                EnsureUniqueShapeName(copy);
+                copies.Add(copy);
+            }
+
+            foreach (ToolpathShape copy in copies)
+            {
+                CustomShapes.AddShape(copy);
+                actions.Add(new AddShapeAction(
+                    CustomShapes,
+                    copy,
+                    CustomShapes.Shapes.Count - 1,
+                    $"Duplicate {copy.Name}"));
+            }
+
+            CustomShapes.SetSelection(copies);
+
+            CustomShapes.UndoManager.RecordAction(new CompositeAction(
+                actions,
+                $"Duplicate {copies.Count} shapes",
+                CustomShapes,
+                originals,
+                copies));
         }
     }
 

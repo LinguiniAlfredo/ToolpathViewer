@@ -128,9 +128,29 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     {
         base.OnPreviewKeyDown(e);
 
+        // Suppress standalone Alt / F10 activating WPF menu mode or toggling focus between viewport and menu
+        if (e.Key == Key.System && (e.SystemKey == Key.LeftAlt || e.SystemKey == Key.RightAlt || e.SystemKey == Key.F10))
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (IsTextInputActive())
         {
             return;
+        }
+
+        if (Keyboard.Modifiers == ModifierKeys.Control && DataContext is MainViewModel vmCtrl)
+        {
+            if (e.Key == Key.A)
+            {
+                if (vmCtrl.SelectAllCommand.CanExecute(null))
+                {
+                    vmCtrl.SelectAllCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                }
+            }
         }
 
         if (Keyboard.Modifiers == ModifierKeys.None && DataContext is MainViewModel vm)
@@ -176,6 +196,18 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                     }
                     break;
             }
+        }
+    }
+
+    protected override void OnPreviewKeyUp(KeyEventArgs e)
+    {
+        base.OnPreviewKeyUp(e);
+
+        // Suppress standalone Alt / F10 key release activating menu navigation
+        if ((e.Key == Key.System && (e.SystemKey == Key.LeftAlt || e.SystemKey == Key.RightAlt || e.SystemKey == Key.F10))
+            || e.Key is Key.LeftAlt or Key.RightAlt or Key.F10)
+        {
+            e.Handled = true;
         }
     }
 

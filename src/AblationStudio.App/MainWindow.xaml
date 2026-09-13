@@ -35,6 +35,7 @@
         <KeyBinding Key="I" Modifiers="Control" Command="{Binding ImportMachineFileCommand}" />
         <KeyBinding Key="F" Modifiers="Control" Command="{Binding FitViewCommand}" />
         <KeyBinding Key="D" Modifiers="Control" Command="{Binding DuplicateSelectedShapeCommand}" />
+        <KeyBinding Key="A" Modifiers="Control" Command="{Binding SelectAllCommand}" />
     </Window.InputBindings>
 
     <Grid>
@@ -60,7 +61,7 @@
                 BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="8,2">
-            <Menu Background="Transparent">
+            <Menu Background="Transparent" IsMainMenu="False">
                 <!-- File Operations Menu -->
                 <MenuItem Header="_File" Padding="8,4">
                     <MenuItem Header="_New Project"
@@ -720,7 +721,7 @@
                             <Style TargetType="ScrollViewer">
                                 <Setter Property="Visibility" Value="Visible" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasSelectedShape}" Value="True">
+                                    <DataTrigger Binding="{Binding HasAnySelection}" Value="True">
                                         <Setter Property="Visibility" Value="Collapsed" />
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -1627,6 +1628,123 @@
                                     </StackPanel>
                                 </ui:Button>
                             </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Multi-Shape Properties ScrollViewer (Visible when HasMultiSelection == True) -->
+                    <ScrollViewer x:Name="MultiShapePropertiesScroll" VerticalScrollBarVisibility="Auto">
+                        <ScrollViewer.Style>
+                            <Style TargetType="ScrollViewer">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasMultiSelection}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ScrollViewer.Style>
+
+                        <StackPanel Margin="16" Orientation="Vertical">
+                            <!-- Header with Count and Deselect button -->
+                            <DockPanel Margin="0,0,0,16">
+                                <ui:Button DockPanel.Dock="Right"
+                                           Appearance="Transparent"
+                                           Command="{Binding DeselectShapeCommand}"
+                                           ToolTip="Deselect all shapes and return to toolpath details"
+                                           Padding="6,4">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="Dismiss24" FontSize="14" Margin="0,0,4,0" />
+                                        <TextBlock Text="Deselect" VerticalAlignment="Center" FontSize="12" />
+                                    </StackPanel>
+                                </ui:Button>
+
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Multiple Shapes"
+                                               FontSize="18"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <TextBlock Text="{Binding SelectedShapeCount, StringFormat='{}{0} shapes selected'}"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                            </DockPanel>
+
+                            <!-- Actions Card -->
+                            <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="14"
+                                    Margin="0,0,0,12">
+                                <StackPanel Orientation="Vertical">
+                                    <TextBlock Text="Group Actions"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                               Margin="0,0,0,10" />
+
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <ui:Button Grid.Column="0"
+                                                   Appearance="Secondary"
+                                                   HorizontalAlignment="Stretch"
+                                                   Command="{Binding DuplicateSelectedShapeCommand}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <ui:SymbolIcon Symbol="Copy24" FontSize="14" Margin="0,0,6,0" />
+                                                <TextBlock Text="Duplicate" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </ui:Button>
+                                        <ui:Button Grid.Column="2"
+                                                   Appearance="Danger"
+                                                   HorizontalAlignment="Stretch"
+                                                   Command="{Binding DeleteSelectedShapeCommand}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <ui:SymbolIcon Symbol="Delete24" FontSize="14" Margin="0,0,6,0" />
+                                                <TextBlock Text="Delete" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </ui:Button>
+                                    </Grid>
+
+                                    <TextBlock Text="Tip: Drag any selected shape to move all. Drag corner handles to scale the group. Drag the green top handle to rotate the group around its center."
+                                               FontSize="11"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               Margin="0,4,0,0" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Selected Shapes List -->
+                            <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="14"
+                                    Margin="0,0,0,12">
+                                <StackPanel Orientation="Vertical">
+                                    <TextBlock Text="Selected Items"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                               Margin="0,0,0,8" />
+
+                                    <ItemsControl ItemsSource="{Binding SelectedShapes}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Padding="8,6" Margin="0,2" CornerRadius="4" Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                                                    <DockPanel>
+                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding ShapeType}" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding Name}" FontWeight="Medium" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
+                                                    </DockPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>

@@ -5,6 +5,7 @@ using System.Windows.Input;
 using OpenTK.Mathematics;
 using OpenTK.Wpf;
 using AblationStudio.App.ViewModels;
+using AblationStudio.Core.History;
 using AblationStudio.Core.History.Actions;
 using AblationStudio.Core.Models;
 using AblationStudio.Core.Shapes;
@@ -32,7 +33,10 @@ public partial class OpenGLViewport : UserControl
     private float _resizeInitialDistance;
     private Vector2 _rotateCenter;
     private float _rotateStartAngleRad;
-    private ToolpathShape? _dragSnapshotShape;
+    private readonly Dictionary<ToolpathShape, ToolpathShape> _dragSnapshotMap = [];
+    private bool _isMarqueeSelecting;
+    private Vector3 _marqueeStartPoint;
+    private Point _mouseDownScreenPos;
     private Vector3 _drawStartPoint;
     private Vector3 _lastShapeHitPoint;
     private ToolpathShape? _previewShape;
@@ -261,7 +265,7 @@ public partial class OpenGLViewport : UserControl
         }
 
         _renderer.Initialize();
-        _renderer.ShapeOverlay.SetSelectedShape(ShapeDocument?.SelectedShape);
+        _renderer.ShapeOverlay.SetSelectedShapes(ShapeDocument?.SelectedShapes);
         _renderer.Render(width, height);
     }
 
@@ -287,9 +291,17 @@ public partial class OpenGLViewport : UserControl
 
         if (e.LeftButton == MouseButtonState.Pressed)
         {
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Alt))
+            {
+                _isOrbiting = true;
+                RootGrid.CaptureMouse();
+                e.Handled = true;
+                return;
+            }
+
             var (rayOrigin, rayDir) = _renderer.Camera.ScreenPointToRay(
                 (float)_lastMousePosition.X, (float)_lastMousePosition.Y, w, h);
-            float planeZ = ShapeDocument?.SelectedShape?.PositionZ ?? 0f;
+            float planeZ = ShapeDocument?.GetSelectionBounds() is { IsEmpty: false } b ? b.MinZ : (ShapeDocument?.SelectedShape?.PositionZ ?? 0f);
             bool hitPlane = _renderer.Camera.IntersectRayPlaneZ(rayOrigin, rayDir, planeZ, out Vector3 hitPoint);
 
             if (CurrentTool == ShapeToolType.Select)
@@ -300,11 +312,11 @@ public partial class OpenGLViewport : UserControl
                     float worldHeight = 2.0f * _renderer.Camera.Distance * MathF.Tan(fovRad * 0.5f);
                     float worldPerPixel = h > 0 ? (worldHeight / h) : 0.05f;
 
-                    // 1. Check handles on the currently selected shape first
-                    if (ShapeDocument.SelectedShape is not null)
+                    // 1. Check handles on the active selection first
+                    if (ShapeDocument.SelectedShapes.Count > 0)
                     {
-                        var selShape = ShapeDocument.SelectedShape;
-                        var (corners, rotHandle, handleRadius) = ShapeOverlayRenderer.GetHandleGeometry(selShape);
+                        BoundingBox3D selBounds = ShapeDocument.GetSelectionBounds();
+                        var (corners, rotHandle, handleRadius) = ShapeOverlayRenderer.GetHandleGeometry(selBounds, planeZ);
                         float handleHitRadius = MathF.Max(handleRadius * 1.5f, 10.0f * worldPerPixel);
                         var hit2D = new Vector2(hitPoint.X, hitPoint.Y);
 
@@ -312,10 +324,13 @@ public partial class OpenGLViewport : UserControl
                         if (Vector2.Distance(hit2D, new Vector2(rotHandle.X, rotHandle.Y)) <= handleHitRadius)
                         {
                             _isRotatingShape = true;
-                            BoundingBox3D bounds = selShape.GetBounds();
-                            _rotateCenter = new Vector2((bounds.MinX + bounds.MaxX) * 0.5f, (bounds.MinY + bounds.MaxY) * 0.5f);
+                            _rotateCenter = new Vector2((selBounds.MinX + selBounds.MaxX) * 0.5f, (selBounds.MinY + selBounds.MaxY) * 0.5f);
                             _rotateStartAngleRad = MathF.Atan2(hitPoint.Y - _rotateCenter.Y, hitPoint.X - _rotateCenter.X);
-                            _dragSnapshotShape = selShape.Clone();
+                            _dragSnapshotMap.Clear();
+                            foreach (ToolpathShape s in ShapeDocument.SelectedShapes)
+                            {
+                                _dragSnapshotMap[s] = s.Clone();
+                            }
                             ShapeDocument.IsDragging = true;
                             Cursor = Cursors.Hand;
                             RootGrid.CaptureMouse();
@@ -343,7 +358,11 @@ public partial class OpenGLViewport : UserControl
                                 {
                                     _resizeInitialDir = Vector2.Normalize(fromAnchor);
                                 }
-                                _dragSnapshotShape = selShape.Clone();
+                                _dragSnapshotMap.Clear();
+                                foreach (ToolpathShape s in ShapeDocument.SelectedShapes)
+                                {
+                                    _dragSnapshotMap[s] = s.Clone();
+                                }
                                 ShapeDocument.IsDragging = true;
                                 Cursor = (i == 0 || i == 2) ? Cursors.SizeNESW : Cursors.SizeNWSE;
                                 RootGrid.CaptureMouse();
@@ -358,19 +377,39 @@ public partial class OpenGLViewport : UserControl
                     ToolpathShape? hitShape = ShapeDocument.HitTest(hitPoint.X, hitPoint.Y, hitTolerance);
                     if (hitShape is not null)
                     {
-                        ShapeDocument.SelectedShape = hitShape;
-                        ShapeDocument.IsDragging = true;
-                        _isDraggingShape = true;
-                        _dragSnapshotShape = hitShape.Clone();
-                        Cursor = Cursors.SizeAll;
-                        if (_renderer.Camera.IntersectRayPlaneZ(rayOrigin, rayDir, hitShape.PositionZ, out Vector3 shapeHit))
+                        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
                         {
-                            _lastShapeHitPoint = shapeHit;
+                            ShapeDocument.ToggleSelection(hitShape);
+                            if (ShapeDocument.SelectedShapes.Contains(hitShape))
+                            {
+                                ShapeDocument.IsDragging = true;
+                                _isDraggingShape = true;
+                                _dragSnapshotMap.Clear();
+                                foreach (ToolpathShape s in ShapeDocument.SelectedShapes)
+                                {
+                                    _dragSnapshotMap[s] = s.Clone();
+                                }
+                                Cursor = Cursors.SizeAll;
+                                _lastShapeHitPoint = hitPoint;
+                            }
                         }
                         else
                         {
+                            if (!ShapeDocument.SelectedShapes.Contains(hitShape))
+                            {
+                                ShapeDocument.SelectShape(hitShape);
+                            }
+                            ShapeDocument.IsDragging = true;
+                            _isDraggingShape = true;
+                            _dragSnapshotMap.Clear();
+                            foreach (ToolpathShape s in ShapeDocument.SelectedShapes)
+                            {
+                                _dragSnapshotMap[s] = s.Clone();
+                            }
+                            Cursor = Cursors.SizeAll;
                             _lastShapeHitPoint = hitPoint;
                         }
+
                         RootGrid.CaptureMouse();
                         GlSurface.InvalidateVisual();
                         e.Handled = true;
@@ -378,10 +417,20 @@ public partial class OpenGLViewport : UserControl
                     }
                     else
                     {
-                        // Deselect if clicking on empty space
-                        ShapeDocument.SelectedShape = null;
-                        Cursor = Cursors.Arrow;
+                        // Clicked on empty space -> marquee selection
+                        if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+                        {
+                            ShapeDocument.ClearSelection();
+                        }
+
+                        _isMarqueeSelecting = true;
+                        _marqueeStartPoint = hitPoint;
+                        _mouseDownScreenPos = _lastMousePosition;
+                        Cursor = Cursors.Cross;
+                        RootGrid.CaptureMouse();
                         GlSurface.InvalidateVisual();
+                        e.Handled = true;
+                        return;
                     }
                 }
 
@@ -476,11 +525,30 @@ public partial class OpenGLViewport : UserControl
             return;
         }
 
-        if (_isRotatingShape && ShapeDocument?.SelectedShape is not null && _dragSnapshotShape is not null)
+        if (_isMarqueeSelecting)
         {
             var (rayOrigin, rayDir) = _renderer.Camera.ScreenPointToRay(
                 (float)currentPos.X, (float)currentPos.Y, w, h);
-            float planeZ = ShapeDocument.SelectedShape.PositionZ;
+            float planeZ = _marqueeStartPoint.Z;
+
+            if (_renderer.Camera.IntersectRayPlaneZ(rayOrigin, rayDir, planeZ, out Vector3 hitPoint))
+            {
+                _renderer.ShapeOverlay.SetMarqueeRect(
+                    _marqueeStartPoint.X, _marqueeStartPoint.Y,
+                    hitPoint.X, hitPoint.Y, planeZ);
+                GlSurface.InvalidateVisual();
+            }
+
+            _lastMousePosition = currentPos;
+            e.Handled = true;
+            return;
+        }
+
+        if (_isRotatingShape && ShapeDocument is not null && _dragSnapshotMap.Count > 0)
+        {
+            var (rayOrigin, rayDir) = _renderer.Camera.ScreenPointToRay(
+                (float)currentPos.X, (float)currentPos.Y, w, h);
+            float planeZ = _dragSnapshotMap.Keys.First().PositionZ;
 
             if (_renderer.Camera.IntersectRayPlaneZ(rayOrigin, rayDir, planeZ, out Vector3 hitPoint))
             {
@@ -493,9 +561,11 @@ public partial class OpenGLViewport : UserControl
                     deltaAngleDeg = MathF.Round(deltaAngleDeg / 15f) * 15f;
                 }
 
-                var selShape = ShapeDocument.SelectedShape;
-                selShape.CopyTransformFrom(_dragSnapshotShape);
-                selShape.Rotate(deltaAngleDeg, _rotateCenter.X, _rotateCenter.Y);
+                foreach (var (shape, snapshot) in _dragSnapshotMap)
+                {
+                    shape.CopyTransformFrom(snapshot);
+                    shape.Rotate(deltaAngleDeg, _rotateCenter.X, _rotateCenter.Y);
+                }
                 GlSurface.InvalidateVisual();
             }
 
@@ -504,11 +574,11 @@ public partial class OpenGLViewport : UserControl
             return;
         }
 
-        if (_isResizingShape && ShapeDocument?.SelectedShape is not null && _dragSnapshotShape is not null)
+        if (_isResizingShape && ShapeDocument is not null && _dragSnapshotMap.Count > 0)
         {
             var (rayOrigin, rayDir) = _renderer.Camera.ScreenPointToRay(
                 (float)currentPos.X, (float)currentPos.Y, w, h);
-            float planeZ = ShapeDocument.SelectedShape.PositionZ;
+            float planeZ = _dragSnapshotMap.Keys.First().PositionZ;
 
             if (_renderer.Camera.IntersectRayPlaneZ(rayOrigin, rayDir, planeZ, out Vector3 hitPoint))
             {
@@ -525,9 +595,11 @@ public partial class OpenGLViewport : UserControl
                     scaleFactor = MathF.Max(0.05f, currentDistance / _resizeInitialDistance);
                 }
 
-                var selShape = ShapeDocument.SelectedShape;
-                selShape.CopyTransformFrom(_dragSnapshotShape);
-                selShape.Scale(scaleFactor, _resizeAnchor.X, _resizeAnchor.Y);
+                foreach (var (shape, snapshot) in _dragSnapshotMap)
+                {
+                    shape.CopyTransformFrom(snapshot);
+                    shape.Scale(scaleFactor, _resizeAnchor.X, _resizeAnchor.Y);
+                }
                 GlSurface.InvalidateVisual();
             }
 
@@ -536,11 +608,11 @@ public partial class OpenGLViewport : UserControl
             return;
         }
 
-        if (_isDraggingShape && ShapeDocument?.SelectedShape is not null)
+        if (_isDraggingShape && ShapeDocument is not null && ShapeDocument.SelectedShapes.Count > 0)
         {
             var (rayOrigin, rayDir) = _renderer.Camera.ScreenPointToRay(
                 (float)currentPos.X, (float)currentPos.Y, w, h);
-            float planeZ = ShapeDocument.SelectedShape.PositionZ;
+            float planeZ = ShapeDocument.SelectedShapes.First().PositionZ;
 
             if (_renderer.Camera.IntersectRayPlaneZ(rayOrigin, rayDir, planeZ, out Vector3 hitPoint))
             {
@@ -549,7 +621,10 @@ public partial class OpenGLViewport : UserControl
 
                 if (MathF.Abs(dx) > 1e-4f || MathF.Abs(dy) > 1e-4f)
                 {
-                    ShapeDocument.SelectedShape.Translate(dx, dy, 0f);
+                    foreach (ToolpathShape shape in ShapeDocument.SelectedShapes)
+                    {
+                        shape.Translate(dx, dy, 0f);
+                    }
                     _lastShapeHitPoint = hitPoint;
                     GlSurface.InvalidateVisual();
                 }
@@ -584,24 +659,90 @@ public partial class OpenGLViewport : UserControl
 
     private void OnViewportMouseUp(object sender, MouseButtonEventArgs e)
     {
+        int w = (int)ActualWidth > 0 ? (int)ActualWidth : (int)GlSurface.FrameBufferWidth;
+        int h = (int)ActualHeight > 0 ? (int)ActualHeight : (int)GlSurface.FrameBufferHeight;
+
         if (e.LeftButton == MouseButtonState.Released)
         {
+            if (_isMarqueeSelecting)
+            {
+                _isMarqueeSelecting = false;
+                _renderer.ShapeOverlay.ClearMarquee();
+
+                Point upScreenPos = e.GetPosition(RootGrid);
+                Vector dragVec = upScreenPos - _mouseDownScreenPos;
+
+                if (dragVec.Length > 4.0 && ShapeDocument is not null)
+                {
+                    var (rayOrigin, rayDir) = _renderer.Camera.ScreenPointToRay(
+                        (float)upScreenPos.X, (float)upScreenPos.Y, w, h);
+                    float planeZ = _marqueeStartPoint.Z;
+
+                    if (_renderer.Camera.IntersectRayPlaneZ(rayOrigin, rayDir, planeZ, out Vector3 hitPoint))
+                    {
+                        IReadOnlyList<ToolpathShape> hits = ShapeDocument.HitTestRegion(
+                            _marqueeStartPoint.X, _marqueeStartPoint.Y, hitPoint.X, hitPoint.Y);
+
+                        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+                        {
+                            foreach (ToolpathShape hit in hits)
+                            {
+                                ShapeDocument.AddToSelection(hit);
+                            }
+                        }
+                        else
+                        {
+                            ShapeDocument.SetSelection(hits);
+                        }
+                    }
+                }
+                else if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+                {
+                    ShapeDocument?.ClearSelection();
+                }
+
+                GlSurface.InvalidateVisual();
+            }
+
             if (_isRotatingShape)
             {
                 _isRotatingShape = false;
-                if (ShapeDocument?.SelectedShape is not null && _dragSnapshotShape is not null)
+                if (ShapeDocument is not null && _dragSnapshotMap.Count > 0)
                 {
-                    var selShape = ShapeDocument.SelectedShape;
-                    var afterSnapshot = selShape.Clone();
-                    ShapeDocument.UndoManager.RecordAction(new ModifyShapeAction(
-                        selShape,
-                        _dragSnapshotShape,
-                        afterSnapshot,
-                        $"Rotate {selShape.Name}",
-                        document: ShapeDocument,
-                        wasSelected: true));
+                    if (_dragSnapshotMap.Count == 1)
+                    {
+                        var (selShape, snapshot) = _dragSnapshotMap.First();
+                        var afterSnapshot = selShape.Clone();
+                        ShapeDocument.UndoManager.RecordAction(new ModifyShapeAction(
+                            selShape,
+                            snapshot,
+                            afterSnapshot,
+                            $"Rotate {selShape.Name}",
+                            document: ShapeDocument,
+                            wasSelected: true));
+                    }
+                    else
+                    {
+                        var actions = new List<IUndoableAction>();
+                        foreach (var (shape, snapshot) in _dragSnapshotMap)
+                        {
+                            var afterSnapshot = shape.Clone();
+                            actions.Add(new ModifyShapeAction(
+                                shape,
+                                snapshot,
+                                afterSnapshot,
+                                $"Rotate {shape.Name}",
+                                wasSelected: false));
+                        }
+                        ShapeDocument.UndoManager.RecordAction(new CompositeAction(
+                            actions,
+                            $"Rotate {_dragSnapshotMap.Count} shapes",
+                            ShapeDocument,
+                            _dragSnapshotMap.Keys,
+                            _dragSnapshotMap.Keys));
+                    }
                 }
-                _dragSnapshotShape = null;
+                _dragSnapshotMap.Clear();
                 if (ShapeDocument is not null)
                 {
                     ShapeDocument.IsDragging = false;
@@ -612,19 +753,42 @@ public partial class OpenGLViewport : UserControl
             if (_isResizingShape)
             {
                 _isResizingShape = false;
-                if (ShapeDocument?.SelectedShape is not null && _dragSnapshotShape is not null)
+                if (ShapeDocument is not null && _dragSnapshotMap.Count > 0)
                 {
-                    var selShape = ShapeDocument.SelectedShape;
-                    var afterSnapshot = selShape.Clone();
-                    ShapeDocument.UndoManager.RecordAction(new ModifyShapeAction(
-                        selShape,
-                        _dragSnapshotShape,
-                        afterSnapshot,
-                        $"Scale {selShape.Name}",
-                        document: ShapeDocument,
-                        wasSelected: true));
+                    if (_dragSnapshotMap.Count == 1)
+                    {
+                        var (selShape, snapshot) = _dragSnapshotMap.First();
+                        var afterSnapshot = selShape.Clone();
+                        ShapeDocument.UndoManager.RecordAction(new ModifyShapeAction(
+                            selShape,
+                            snapshot,
+                            afterSnapshot,
+                            $"Scale {selShape.Name}",
+                            document: ShapeDocument,
+                            wasSelected: true));
+                    }
+                    else
+                    {
+                        var actions = new List<IUndoableAction>();
+                        foreach (var (shape, snapshot) in _dragSnapshotMap)
+                        {
+                            var afterSnapshot = shape.Clone();
+                            actions.Add(new ModifyShapeAction(
+                                shape,
+                                snapshot,
+                                afterSnapshot,
+                                $"Scale {shape.Name}",
+                                wasSelected: false));
+                        }
+                        ShapeDocument.UndoManager.RecordAction(new CompositeAction(
+                            actions,
+                            $"Scale {_dragSnapshotMap.Count} shapes",
+                            ShapeDocument,
+                            _dragSnapshotMap.Keys,
+                            _dragSnapshotMap.Keys));
+                    }
                 }
-                _dragSnapshotShape = null;
+                _dragSnapshotMap.Clear();
                 if (ShapeDocument is not null)
                 {
                     ShapeDocument.IsDragging = false;
@@ -667,24 +831,41 @@ public partial class OpenGLViewport : UserControl
             if (_isDraggingShape)
             {
                 _isDraggingShape = false;
-                if (ShapeDocument?.SelectedShape is not null && _dragSnapshotShape is not null)
+                if (ShapeDocument is not null && _dragSnapshotMap.Count > 0)
                 {
-                    var selShape = ShapeDocument.SelectedShape;
-                    if (MathF.Abs(selShape.PositionX - _dragSnapshotShape.PositionX) > 1e-4f ||
-                        MathF.Abs(selShape.PositionY - _dragSnapshotShape.PositionY) > 1e-4f ||
-                        MathF.Abs(selShape.PositionZ - _dragSnapshotShape.PositionZ) > 1e-4f)
+                    var changedActions = new List<IUndoableAction>();
+                    foreach (var (shape, snapshot) in _dragSnapshotMap)
                     {
-                        var afterSnapshot = selShape.Clone();
-                        ShapeDocument.UndoManager.RecordAction(new ModifyShapeAction(
-                            selShape,
-                            _dragSnapshotShape,
-                            afterSnapshot,
-                            $"Move {selShape.Name}",
-                            document: ShapeDocument,
-                            wasSelected: true));
+                        if (MathF.Abs(shape.PositionX - snapshot.PositionX) > 1e-4f ||
+                            MathF.Abs(shape.PositionY - snapshot.PositionY) > 1e-4f ||
+                            MathF.Abs(shape.PositionZ - snapshot.PositionZ) > 1e-4f)
+                        {
+                            var afterSnapshot = shape.Clone();
+                            changedActions.Add(new ModifyShapeAction(
+                                shape,
+                                snapshot,
+                                afterSnapshot,
+                                $"Move {shape.Name}",
+                                document: ShapeDocument,
+                                wasSelected: true));
+                        }
+                    }
+
+                    if (changedActions.Count == 1)
+                    {
+                        ShapeDocument.UndoManager.RecordAction(changedActions[0]);
+                    }
+                    else if (changedActions.Count > 1)
+                    {
+                        ShapeDocument.UndoManager.RecordAction(new CompositeAction(
+                            changedActions,
+                            $"Move {changedActions.Count} shapes",
+                            ShapeDocument,
+                            _dragSnapshotMap.Keys,
+                            _dragSnapshotMap.Keys));
                     }
                 }
-                _dragSnapshotShape = null;
+                _dragSnapshotMap.Clear();
                 if (ShapeDocument is not null)
                 {
                     ShapeDocument.IsDragging = false;
@@ -700,14 +881,12 @@ public partial class OpenGLViewport : UserControl
             _isPanning = false;
         }
 
-        if (!_isOrbiting && !_isPanning && !_isDrawing && !_isDraggingShape && !_isResizingShape && !_isRotatingShape)
+        if (!_isOrbiting && !_isPanning && !_isDrawing && !_isDraggingShape && !_isResizingShape && !_isRotatingShape && !_isMarqueeSelecting)
         {
             RootGrid.ReleaseMouseCapture();
         }
 
         Point currentPos = e.GetPosition(RootGrid);
-        int w = (int)ActualWidth > 0 ? (int)ActualWidth : (int)GlSurface.FrameBufferWidth;
-        int h = (int)ActualHeight > 0 ? (int)ActualHeight : (int)GlSurface.FrameBufferHeight;
         UpdateHoverCursor(currentPos, w, h);
 
         GlSurface.InvalidateVisual();
@@ -716,7 +895,7 @@ public partial class OpenGLViewport : UserControl
 
     private void OnViewportMouseLeave(object sender, MouseEventArgs e)
     {
-        if (!_isDraggingShape && !_isResizingShape && !_isRotatingShape && !_isOrbiting && !_isPanning)
+        if (!_isDraggingShape && !_isResizingShape && !_isRotatingShape && !_isOrbiting && !_isPanning && !_isMarqueeSelecting)
         {
             Cursor = Cursors.Arrow;
         }
@@ -730,16 +909,22 @@ public partial class OpenGLViewport : UserControl
             return;
         }
 
-        if (ShapeDocument?.SelectedShape is null)
+        if (ShapeDocument is null || ShapeDocument.SelectedShapes.Count == 0)
         {
             Cursor = Cursors.Arrow;
             return;
         }
 
-        var selShape = ShapeDocument.SelectedShape;
+        BoundingBox3D selBounds = ShapeDocument.GetSelectionBounds();
+        if (selBounds.IsEmpty)
+        {
+            Cursor = Cursors.Arrow;
+            return;
+        }
+
+        float planeZ = ShapeDocument.SelectedShapes.First().PositionZ;
         var (rayOrigin, rayDir) = _renderer.Camera.ScreenPointToRay(
             (float)currentPos.X, (float)currentPos.Y, w, h);
-        float planeZ = selShape.PositionZ;
 
         if (!_renderer.Camera.IntersectRayPlaneZ(rayOrigin, rayDir, planeZ, out Vector3 hitPoint))
         {
@@ -747,7 +932,7 @@ public partial class OpenGLViewport : UserControl
             return;
         }
 
-        var (corners, rotHandle, handleRadius) = ShapeOverlayRenderer.GetHandleGeometry(selShape);
+        var (corners, rotHandle, handleRadius) = ShapeOverlayRenderer.GetHandleGeometry(selBounds, planeZ);
         float fovRad = MathHelper.DegreesToRadians(_renderer.Camera.FieldOfViewDegrees);
         float worldHeight = 2.0f * _renderer.Camera.Distance * MathF.Tan(fovRad * 0.5f);
         float worldPerPixel = h > 0 ? (worldHeight / h) : 0.05f;
@@ -763,8 +948,6 @@ public partial class OpenGLViewport : UserControl
         }
 
         // 2. Corner resize handles
-        // 0: BL, 2: TR -> SizeNESW
-        // 1: BR, 3: TL -> SizeNWSE
         if (Vector2.Distance(hitPt2D, new Vector2(corners[0].X, corners[0].Y)) <= hitRadius ||
             Vector2.Distance(hitPt2D, new Vector2(corners[2].X, corners[2].Y)) <= hitRadius)
         {
@@ -781,7 +964,8 @@ public partial class OpenGLViewport : UserControl
 
         // 3. Shape body
         float shapeHitTolerance = MathF.Max(0.8f, 10.0f * worldPerPixel);
-        if (ShapeDocument.HitTest(hitPoint.X, hitPoint.Y, shapeHitTolerance) == selShape)
+        ToolpathShape? hitShape = ShapeDocument.HitTest(hitPoint.X, hitPoint.Y, shapeHitTolerance);
+        if (hitShape is not null && ShapeDocument.SelectedShapes.Contains(hitShape))
         {
             Cursor = Cursors.SizeAll;
             return;

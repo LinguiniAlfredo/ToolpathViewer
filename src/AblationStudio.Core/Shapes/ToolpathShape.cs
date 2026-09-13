@@ -216,6 +216,75 @@ public abstract class ToolpathShape : INotifyPropertyChanged
 
     public abstract bool HitTest(float worldX, float worldY, float tolerance);
 
+    public virtual bool IntersectsRect(float minX, float minY, float maxX, float maxY)
+    {
+        BoundingBox3D bounds = GetBounds();
+        if (bounds.IsEmpty)
+        {
+            return false;
+        }
+
+        if (bounds.MaxX < minX || bounds.MinX > maxX || bounds.MaxY < minY || bounds.MinY > maxY)
+        {
+            return false;
+        }
+
+        IReadOnlyList<ToolpathPoint> points = GetPathPoints();
+        for (int i = 0; i < points.Count; i++)
+        {
+            ToolpathPoint pt = points[i];
+            if (pt.X >= minX && pt.X <= maxX && pt.Y >= minY && pt.Y <= maxY)
+            {
+                return true;
+            }
+        }
+
+        if (HitTest(minX, minY, 0f) || HitTest(maxX, minY, 0f) ||
+            HitTest(maxX, maxY, 0f) || HitTest(minX, maxY, 0f))
+        {
+            return true;
+        }
+
+        for (int i = 0; i < points.Count - 1; i++)
+        {
+            if (SegmentIntersectsAabb(points[i], points[i + 1], minX, minY, maxX, maxY))
+            {
+                return true;
+            }
+        }
+
+        if (IsClosed && points.Count > 2)
+        {
+            if (SegmentIntersectsAabb(points[^1], points[0], minX, minY, maxX, maxY))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool SegmentIntersectsAabb(ToolpathPoint p1, ToolpathPoint p2, float minX, float minY, float maxX, float maxY)
+    {
+        return LineIntersectsLine(p1.X, p1.Y, p2.X, p2.Y, minX, minY, maxX, minY) ||
+               LineIntersectsLine(p1.X, p1.Y, p2.X, p2.Y, maxX, minY, maxX, maxY) ||
+               LineIntersectsLine(p1.X, p1.Y, p2.X, p2.Y, maxX, maxY, minX, maxY) ||
+               LineIntersectsLine(p1.X, p1.Y, p2.X, p2.Y, minX, maxY, minX, minY);
+    }
+
+    private static bool LineIntersectsLine(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4)
+    {
+        float denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+        if (MathF.Abs(denom) < 1e-7f)
+        {
+            return false;
+        }
+
+        float ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom;
+        float ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom;
+        return ua >= 0f && ua <= 1f && ub >= 0f && ub <= 1f;
+    }
+
     public virtual void Translate(float deltaX, float deltaY, float deltaZ)
     {
         _positionX += deltaX;

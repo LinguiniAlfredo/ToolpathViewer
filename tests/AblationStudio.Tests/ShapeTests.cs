@@ -667,6 +667,142 @@ public sealed class ShapeTests
         Assert.True(rotHandle.Y > 5.0f, $"Rotation handle Y was {rotHandle.Y}, expected > 5.0");
         Assert.True(handleRadius > 0f);
     }
+
+    [Fact]
+    public void ShapeDocument_MultiSelection_AddToSelectionAndToggle()
+    {
+        var doc = new ShapeDocument();
+        var c1 = new CircleShape(0f, 0f, 0f, 5f);
+        var c2 = new CircleShape(20f, 0f, 0f, 5f);
+        var c3 = new CircleShape(40f, 0f, 0f, 5f);
+        doc.AddShape(c1);
+        doc.AddShape(c2);
+        doc.AddShape(c3);
+
+        Assert.Single(doc.SelectedShapes);
+        Assert.Same(c3, doc.SelectedShape);
+
+        doc.AddToSelection(c1);
+        Assert.Equal(2, doc.SelectedShapes.Count);
+        Assert.True(c1.IsSelected);
+        Assert.True(c3.IsSelected);
+        Assert.False(c2.IsSelected);
+        Assert.Null(doc.SelectedShape);
+
+        doc.ToggleSelection(c3);
+        Assert.Single(doc.SelectedShapes);
+        Assert.Same(c1, doc.SelectedShape);
+        Assert.False(c3.IsSelected);
+
+        doc.ToggleSelection(c2);
+        Assert.Equal(2, doc.SelectedShapes.Count);
+        Assert.True(c1.IsSelected);
+        Assert.True(c2.IsSelected);
+    }
+
+    [Fact]
+    public void ShapeDocument_SelectAll_And_ClearSelection()
+    {
+        var doc = new ShapeDocument();
+        var c1 = new CircleShape(0f, 0f, 0f, 5f);
+        var c2 = new CircleShape(20f, 0f, 0f, 5f);
+        doc.AddShape(c1);
+        doc.AddShape(c2);
+
+        doc.SelectAll();
+        Assert.Equal(2, doc.SelectedShapes.Count);
+        Assert.True(c1.IsSelected);
+        Assert.True(c2.IsSelected);
+
+        doc.ClearSelection();
+        Assert.Empty(doc.SelectedShapes);
+        Assert.False(c1.IsSelected);
+        Assert.False(c2.IsSelected);
+        Assert.Null(doc.SelectedShape);
+    }
+
+    [Fact]
+    public void ShapeDocument_GetSelectionBounds_CalculatesCombinedBounds()
+    {
+        var doc = new ShapeDocument();
+        var c1 = new CircleShape(0f, 0f, 0f, 5f);
+        var r1 = new RectangleShape(20f, 0f, 0f, 20f, 10f);
+        doc.AddShape(c1);
+        doc.AddShape(r1);
+
+        doc.SelectAll();
+        BoundingBox3D bounds = doc.GetSelectionBounds();
+
+        Assert.False(bounds.IsEmpty);
+        Assert.Equal(-5f, bounds.MinX, precision: 2);
+        Assert.Equal(30f, bounds.MaxX, precision: 2);
+        Assert.Equal(-5f, bounds.MinY, precision: 2);
+        Assert.Equal(5f, bounds.MaxY, precision: 2);
+    }
+
+    [Fact]
+    public void ShapeDocument_HitTestRegion_MarqueeSelection()
+    {
+        var doc = new ShapeDocument();
+        var c1 = new CircleShape(0f, 0f, 0f, 5f);
+        var c2 = new CircleShape(50f, 50f, 0f, 5f);
+        doc.AddShape(c1);
+        doc.AddShape(c2);
+
+        var hits = doc.HitTestRegion(-10f, -10f, 10f, 10f);
+        Assert.Single(hits);
+        Assert.Same(c1, hits[0]);
+
+        var allHits = doc.HitTestRegion(-10f, -10f, 60f, 60f);
+        Assert.Equal(2, allHits.Count);
+
+        var noHits = doc.HitTestRegion(100f, 100f, 200f, 200f);
+        Assert.Empty(noHits);
+    }
+
+    [Fact]
+    public void CompositeAction_RestoresSelectionOnUndoRedo()
+    {
+        var doc = new ShapeDocument();
+        var c1 = new CircleShape(0f, 0f, 0f, 5f);
+        var c2 = new CircleShape(20f, 0f, 0f, 5f);
+        doc.AddShape(c1);
+        doc.AddShape(c2);
+
+        doc.SelectAll();
+        var beforeSnapshot1 = c1.Clone();
+        var beforeSnapshot2 = c2.Clone();
+
+        c1.Translate(10f, 0f, 0f);
+        c2.Translate(10f, 0f, 0f);
+
+        var a1 = new AblationStudio.Core.History.Actions.ModifyShapeAction(c1, beforeSnapshot1, c1.Clone(), "Move c1", wasSelected: false);
+        var a2 = new AblationStudio.Core.History.Actions.ModifyShapeAction(c2, beforeSnapshot2, c2.Clone(), "Move c2", wasSelected: false);
+
+        var composite = new AblationStudio.Core.History.Actions.CompositeAction(
+            [a1, a2],
+            "Move 2 shapes",
+            doc,
+            [c1, c2],
+            [c1, c2]);
+
+        doc.UndoManager.RecordAction(composite);
+
+        doc.ClearSelection();
+        Assert.Empty(doc.SelectedShapes);
+
+        doc.UndoManager.Undo();
+        Assert.Equal(0f, c1.PositionX, precision: 2);
+        Assert.Equal(20f, c2.PositionX, precision: 2);
+        Assert.Equal(2, doc.SelectedShapes.Count);
+        Assert.True(c1.IsSelected);
+        Assert.True(c2.IsSelected);
+
+        doc.UndoManager.Redo();
+        Assert.Equal(10f, c1.PositionX, precision: 2);
+        Assert.Equal(30f, c2.PositionX, precision: 2);
+        Assert.Equal(2, doc.SelectedShapes.Count);
+    }
 }
 
 

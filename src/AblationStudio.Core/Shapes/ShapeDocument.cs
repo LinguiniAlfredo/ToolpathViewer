@@ -10,41 +10,35 @@ namespace AblationStudio.Core.Shapes;
 public sealed class ShapeDocument
 {
     private readonly ObservableCollection<ToolpathShape> _shapes = [];
-    private ToolpathShape? _selectedShape;
+    private readonly HashSet<ToolpathShape> _selectedShapes = [];
 
     private ToolpathShape? _activeEditingShape;
     private ToolpathShape? _activeBeforeSnapshot;
     private string? _activeEditingProperty;
 
     public ReadOnlyObservableCollection<ToolpathShape> Shapes { get; }
+    public IReadOnlyCollection<ToolpathShape> SelectedShapes => _selectedShapes;
     public UndoRedoManager UndoManager { get; } = new();
 
     public ToolpathShape? SelectedShape
     {
-        get => _selectedShape;
+        get => _selectedShapes.Count == 1 ? _selectedShapes.First() : null;
         set
         {
-            if (_selectedShape != value)
+            if (value is null)
             {
-                if (_selectedShape is not null)
-                {
-                    _selectedShape.IsSelected = false;
-                }
-
-                _selectedShape = value;
-
-                if (_selectedShape is not null)
-                {
-                    _selectedShape.IsSelected = true;
-                }
-
-                SelectionChanged?.Invoke(_selectedShape);
+                ClearSelection();
+            }
+            else
+            {
+                SelectShape(value);
             }
         }
     }
 
     public event Action? DocumentChanged;
     public event Action<ToolpathShape?>? SelectionChanged;
+    public event Action<IReadOnlyCollection<ToolpathShape>>? SelectionCollectionChanged;
 
     public bool IsDragging { get; set; }
 
@@ -56,6 +50,205 @@ public sealed class ShapeDocument
     public ShapeDocument()
     {
         Shapes = new ReadOnlyObservableCollection<ToolpathShape>(_shapes);
+    }
+
+    private void NotifySelectionChanged()
+    {
+        SelectionChanged?.Invoke(SelectedShape);
+        SelectionCollectionChanged?.Invoke(_selectedShapes);
+    }
+
+    public void SelectShape(ToolpathShape shape)
+    {
+        ArgumentNullException.ThrowIfNull(shape);
+
+        if (_selectedShapes.Count == 1 && _selectedShapes.Contains(shape))
+        {
+            return;
+        }
+
+        bool changed = false;
+        var toRemove = new List<ToolpathShape>();
+        foreach (ToolpathShape s in _selectedShapes)
+        {
+            if (s != shape)
+            {
+                s.IsSelected = false;
+                toRemove.Add(s);
+                changed = true;
+            }
+        }
+        foreach (ToolpathShape r in toRemove)
+        {
+            _selectedShapes.Remove(r);
+        }
+
+        if (_selectedShapes.Add(shape))
+        {
+            shape.IsSelected = true;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            NotifySelectionChanged();
+        }
+    }
+
+    public void AddToSelection(ToolpathShape shape)
+    {
+        ArgumentNullException.ThrowIfNull(shape);
+        if (_selectedShapes.Add(shape))
+        {
+            shape.IsSelected = true;
+            NotifySelectionChanged();
+        }
+    }
+
+    public void RemoveFromSelection(ToolpathShape shape)
+    {
+        ArgumentNullException.ThrowIfNull(shape);
+        if (_selectedShapes.Remove(shape))
+        {
+            shape.IsSelected = false;
+            NotifySelectionChanged();
+        }
+    }
+
+    public void ToggleSelection(ToolpathShape shape)
+    {
+        ArgumentNullException.ThrowIfNull(shape);
+        if (_selectedShapes.Contains(shape))
+        {
+            RemoveFromSelection(shape);
+        }
+        else
+        {
+            AddToSelection(shape);
+        }
+    }
+
+    public void SelectAll()
+    {
+        bool changed = false;
+        foreach (ToolpathShape s in _shapes)
+        {
+            if (_selectedShapes.Add(s))
+            {
+                s.IsSelected = true;
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            NotifySelectionChanged();
+        }
+    }
+
+    public void ClearSelection()
+    {
+        if (_selectedShapes.Count == 0)
+        {
+            return;
+        }
+
+        foreach (ToolpathShape s in _selectedShapes)
+        {
+            s.IsSelected = false;
+        }
+        _selectedShapes.Clear();
+        NotifySelectionChanged();
+    }
+
+    public void SetSelection(IEnumerable<ToolpathShape> shapes)
+    {
+        ArgumentNullException.ThrowIfNull(shapes);
+        var targetSet = shapes.ToHashSet();
+        bool changed = false;
+
+        var toRemove = new List<ToolpathShape>();
+        foreach (ToolpathShape s in _selectedShapes)
+        {
+            if (!targetSet.Contains(s))
+            {
+                s.IsSelected = false;
+                toRemove.Add(s);
+                changed = true;
+            }
+        }
+        foreach (ToolpathShape r in toRemove)
+        {
+            _selectedShapes.Remove(r);
+        }
+
+        foreach (ToolpathShape s in targetSet)
+        {
+            if (_selectedShapes.Add(s))
+            {
+                s.IsSelected = true;
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            NotifySelectionChanged();
+        }
+    }
+
+    public BoundingBox3D GetSelectionBounds()
+    {
+        if (_selectedShapes.Count == 0)
+        {
+            return BoundingBox3D.Empty;
+        }
+
+        float minX = float.MaxValue, maxX = float.MinValue;
+        float minY = float.MaxValue, maxY = float.MinValue;
+        float minZ = float.MaxValue, maxZ = float.MinValue;
+
+        foreach (ToolpathShape shape in _selectedShapes)
+        {
+            BoundingBox3D b = shape.GetBounds();
+            if (b.IsEmpty)
+            {
+                continue;
+            }
+
+            minX = MathF.Min(minX, b.MinX);
+            maxX = MathF.Max(maxX, b.MaxX);
+            minY = MathF.Min(minY, b.MinY);
+            maxY = MathF.Max(maxY, b.MaxY);
+            minZ = MathF.Min(minZ, b.MinZ);
+            maxZ = MathF.Max(maxZ, b.MaxZ);
+        }
+
+        if (minX > maxX)
+        {
+            return BoundingBox3D.Empty;
+        }
+
+        return new BoundingBox3D(minX, minY, minZ, maxX, maxY, maxZ);
+    }
+
+    public IReadOnlyList<ToolpathShape> HitTestRegion(float x1, float y1, float x2, float y2)
+    {
+        float minX = MathF.Min(x1, x2);
+        float maxX = MathF.Max(x1, x2);
+        float minY = MathF.Min(y1, y2);
+        float maxY = MathF.Max(y1, y2);
+
+        var hits = new List<ToolpathShape>();
+        for (int i = _shapes.Count - 1; i >= 0; i--)
+        {
+            if (_shapes[i].IntersectsRect(minX, minY, maxX, maxY))
+            {
+                hits.Add(_shapes[i]);
+            }
+        }
+
+        return hits;
     }
 
     public void AddShape(ToolpathShape shape)
@@ -86,9 +279,11 @@ public sealed class ShapeDocument
         bool removed = _shapes.Remove(shape);
         if (removed)
         {
-            if (SelectedShape == shape)
+            bool wasSelected = _selectedShapes.Remove(shape);
+            if (wasSelected)
             {
-                SelectedShape = null;
+                shape.IsSelected = false;
+                NotifySelectionChanged();
             }
             DocumentChanged?.Invoke();
         }
@@ -105,7 +300,8 @@ public sealed class ShapeDocument
         }
 
         _shapes.Clear();
-        SelectedShape = null;
+        _selectedShapes.Clear();
+        NotifySelectionChanged();
         FlushPropertyCoalescing();
         DocumentChanged?.Invoke();
     }

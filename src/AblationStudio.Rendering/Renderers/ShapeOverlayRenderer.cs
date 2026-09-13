@@ -23,20 +23,29 @@ public sealed class ShapeOverlayRenderer : IDisposable
     private int _handlesVbo;
     private int _handlesVertexCount;
 
+    private int _marqueeVao;
+    private int _marqueeVbo;
+    private int _marqueeVertexCount;
+
+    private int _marqueeFillVao;
+    private int _marqueeFillVbo;
+    private int _marqueeFillVertexCount;
+
     private bool _hasPreview;
     private bool _hasSelection;
+    private bool _hasMarquee;
     private bool _disposed;
 
     public static readonly Vector4 PreviewColor = new(1.0f, 0.9f, 0.2f, 1.0f);     // Bright Yellow
     public static readonly Vector4 SelectionColor = new(0.0f, 0.65f, 1.0f, 0.9f);  // Cyan Selection Frame
+    public static readonly Vector4 SubtleSelectionColor = new(0.0f, 0.65f, 1.0f, 0.4f); // Subtle Cyan Frame for inner shapes
     public static readonly Vector4 HandleColor = new(1.0f, 1.0f, 1.0f, 0.95f);      // Crisp White Corner Handles
     public static readonly Vector4 RotateHandleColor = new(0.2f, 0.9f, 0.4f, 0.95f); // Vibrant Emerald Green Rotation Handle
+    public static readonly Vector4 MarqueeBorderColor = new(0.2f, 0.7f, 1.0f, 0.9f);
+    public static readonly Vector4 MarqueeFillColor = new(0.2f, 0.7f, 1.0f, 0.15f);
 
-    public static (ToolpathPoint[] Corners, ToolpathPoint RotHandle, float HandleRadius) GetHandleGeometry(ToolpathShape shape)
+    public static (ToolpathPoint[] Corners, ToolpathPoint RotHandle, float HandleRadius) GetHandleGeometry(BoundingBox3D bounds, float z)
     {
-        BoundingBox3D bounds = shape.GetBounds();
-        float z = shape.PositionZ;
-
         var corners = new ToolpathPoint[]
         {
             new(bounds.MinX, bounds.MinY, z), // 0: Bottom-Left
@@ -56,6 +65,11 @@ public sealed class ShapeOverlayRenderer : IDisposable
         return (corners, rotHandle, handleRadius);
     }
 
+    public static (ToolpathPoint[] Corners, ToolpathPoint RotHandle, float HandleRadius) GetHandleGeometry(ToolpathShape shape)
+    {
+        return GetHandleGeometry(shape.GetBounds(), shape.PositionZ);
+    }
+
     public void Initialize()
     {
         if (_previewVao == 0)
@@ -71,6 +85,14 @@ public sealed class ShapeOverlayRenderer : IDisposable
             _handlesVao = GL.GenVertexArray();
             _handlesVbo = GL.GenBuffer();
             SetupVao(_handlesVao, _handlesVbo);
+
+            _marqueeVao = GL.GenVertexArray();
+            _marqueeVbo = GL.GenBuffer();
+            SetupVao(_marqueeVao, _marqueeVbo);
+
+            _marqueeFillVao = GL.GenVertexArray();
+            _marqueeFillVbo = GL.GenBuffer();
+            SetupVao(_marqueeFillVao, _marqueeFillVbo);
         }
     }
 
@@ -142,7 +164,12 @@ public sealed class ShapeOverlayRenderer : IDisposable
 
     public void SetSelectedShape(ToolpathShape? shape)
     {
-        if (shape is null)
+        SetSelectedShapes(shape is not null ? [shape] : null);
+    }
+
+    public void SetSelectedShapes(IReadOnlyCollection<ToolpathShape>? shapes)
+    {
+        if (shapes is null || shapes.Count == 0)
         {
             _hasSelection = false;
             _selectionVertexCount = 0;
@@ -153,10 +180,52 @@ public sealed class ShapeOverlayRenderer : IDisposable
         var boxLines = new List<float>();
         var handleTriangles = new List<float>();
 
-        BoundingBox3D bounds = shape.GetBounds();
-        float z = shape.PositionZ;
+        float minX = float.MaxValue, maxX = float.MinValue;
+        float minY = float.MaxValue, maxY = float.MinValue;
+        float minZ = float.MaxValue, maxZ = float.MinValue;
 
-        var (corners, rotHandle, handleRadius) = GetHandleGeometry(shape);
+        foreach (ToolpathShape s in shapes)
+        {
+            BoundingBox3D b = s.GetBounds();
+            if (b.IsEmpty)
+            {
+                continue;
+            }
+
+            minX = MathF.Min(minX, b.MinX);
+            maxX = MathF.Max(maxX, b.MaxX);
+            minY = MathF.Min(minY, b.MinY);
+            maxY = MathF.Max(maxY, b.MaxY);
+            minZ = MathF.Min(minZ, b.MinZ);
+            maxZ = MathF.Max(maxZ, b.MaxZ);
+
+            if (shapes.Count > 1)
+            {
+                float sz = s.PositionZ;
+                var sp0 = new ToolpathPoint(b.MinX, b.MinY, sz);
+                var sp1 = new ToolpathPoint(b.MaxX, b.MinY, sz);
+                var sp2 = new ToolpathPoint(b.MaxX, b.MaxY, sz);
+                var sp3 = new ToolpathPoint(b.MinX, b.MaxY, sz);
+
+                AddSegment(boxLines, sp0, sp1, SubtleSelectionColor);
+                AddSegment(boxLines, sp1, sp2, SubtleSelectionColor);
+                AddSegment(boxLines, sp2, sp3, SubtleSelectionColor);
+                AddSegment(boxLines, sp3, sp0, SubtleSelectionColor);
+            }
+        }
+
+        if (minX > maxX)
+        {
+            _hasSelection = false;
+            _selectionVertexCount = 0;
+            _handlesVertexCount = 0;
+            return;
+        }
+
+        var combinedBounds = new BoundingBox3D(minX, minY, minZ, maxX, maxY, maxZ);
+        float z = shapes.First().PositionZ;
+
+        var (corners, rotHandle, handleRadius) = GetHandleGeometry(combinedBounds, z);
 
         // Bounding box frame lines
         var p0 = corners[0];
@@ -170,13 +239,15 @@ public sealed class ShapeOverlayRenderer : IDisposable
         AddSegment(boxLines, p3, p0, SelectionColor);
 
         // Stem line connecting top-edge midpoint to rotation handle
-        float topCenterX = (bounds.MinX + bounds.MaxX) * 0.5f;
-        var topMid = new ToolpathPoint(topCenterX, bounds.MaxY, z);
+        float topCenterX = (combinedBounds.MinX + combinedBounds.MaxX) * 0.5f;
+        var topMid = new ToolpathPoint(topCenterX, combinedBounds.MaxY, z);
         AddSegment(boxLines, topMid, rotHandle, SelectionColor);
 
         // Center cross marker
-        var center = new ToolpathPoint(shape.PositionX, shape.PositionY, z);
-        float markerSize = MathF.Max(0.5f, MathF.Min(bounds.SizeX, bounds.SizeY) * 0.1f);
+        float centerX = topCenterX;
+        float centerY = (combinedBounds.MinY + combinedBounds.MaxY) * 0.5f;
+        var center = new ToolpathPoint(centerX, centerY, z);
+        float markerSize = MathF.Max(0.5f, MathF.Min(combinedBounds.SizeX, combinedBounds.SizeY) * 0.1f);
         AddCross(boxLines, center, SelectionColor, markerSize);
 
         // Corner Handles (White)
@@ -198,9 +269,53 @@ public sealed class ShapeOverlayRenderer : IDisposable
         _hasSelection = true;
     }
 
+    public void SetMarqueeRect(float x0, float y0, float x1, float y1, float z)
+    {
+        float minX = MathF.Min(x0, x1);
+        float maxX = MathF.Max(x0, x1);
+        float minY = MathF.Min(y0, y1);
+        float maxY = MathF.Max(y0, y1);
+
+        var lines = new List<float>();
+        var p0 = new ToolpathPoint(minX, minY, z);
+        var p1 = new ToolpathPoint(maxX, minY, z);
+        var p2 = new ToolpathPoint(maxX, maxY, z);
+        var p3 = new ToolpathPoint(minX, maxY, z);
+
+        AddSegment(lines, p0, p1, MarqueeBorderColor);
+        AddSegment(lines, p1, p2, MarqueeBorderColor);
+        AddSegment(lines, p2, p3, MarqueeBorderColor);
+        AddSegment(lines, p3, p0, MarqueeBorderColor);
+
+        UploadData(_marqueeVao, _marqueeVbo, lines);
+        _marqueeVertexCount = lines.Count / FloatStride;
+
+        var fills = new List<float>();
+        // Tri 1
+        AddVertex(fills, minX, minY, z, MarqueeFillColor);
+        AddVertex(fills, maxX, minY, z, MarqueeFillColor);
+        AddVertex(fills, maxX, maxY, z, MarqueeFillColor);
+        // Tri 2
+        AddVertex(fills, minX, minY, z, MarqueeFillColor);
+        AddVertex(fills, maxX, maxY, z, MarqueeFillColor);
+        AddVertex(fills, minX, maxY, z, MarqueeFillColor);
+
+        UploadData(_marqueeFillVao, _marqueeFillVbo, fills);
+        _marqueeFillVertexCount = fills.Count / FloatStride;
+
+        _hasMarquee = true;
+    }
+
+    public void ClearMarquee()
+    {
+        _hasMarquee = false;
+        _marqueeVertexCount = 0;
+        _marqueeFillVertexCount = 0;
+    }
+
     public void Render(ShaderProgram shader, Matrix4 mvp)
     {
-        if (!_hasPreview && !_hasSelection)
+        if (!_hasPreview && !_hasSelection && !_hasMarquee)
         {
             return;
         }
@@ -232,6 +347,23 @@ public sealed class ShapeOverlayRenderer : IDisposable
             GL.LineWidth(2.5f);
             GL.BindVertexArray(_previewVao);
             GL.DrawArrays(PrimitiveType.Lines, 0, _previewVertexCount);
+        }
+
+        // 3. Draw Marquee Selection
+        if (_hasMarquee)
+        {
+            if (_marqueeFillVertexCount > 0)
+            {
+                GL.BindVertexArray(_marqueeFillVao);
+                GL.DrawArrays(PrimitiveType.Triangles, 0, _marqueeFillVertexCount);
+            }
+
+            if (_marqueeVertexCount > 0)
+            {
+                GL.LineWidth(1.5f);
+                GL.BindVertexArray(_marqueeVao);
+                GL.DrawArrays(PrimitiveType.Lines, 0, _marqueeVertexCount);
+            }
         }
 
         GL.BindVertexArray(0);
@@ -316,6 +448,10 @@ public sealed class ShapeOverlayRenderer : IDisposable
             if (_selectionVao != 0) GL.DeleteVertexArray(_selectionVao);
             if (_handlesVbo != 0) GL.DeleteBuffer(_handlesVbo);
             if (_handlesVao != 0) GL.DeleteVertexArray(_handlesVao);
+            if (_marqueeVbo != 0) GL.DeleteBuffer(_marqueeVbo);
+            if (_marqueeVao != 0) GL.DeleteVertexArray(_marqueeVao);
+            if (_marqueeFillVbo != 0) GL.DeleteBuffer(_marqueeFillVbo);
+            if (_marqueeFillVao != 0) GL.DeleteVertexArray(_marqueeFillVao);
             _disposed = true;
         }
     }

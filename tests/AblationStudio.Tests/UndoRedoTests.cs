@@ -694,6 +694,98 @@ public sealed class UndoRedoTests
         Assert.Same(orig, doc.Shapes[0]);
     }
 
+    [Fact]
+    public void MultiShapeDelete_UndoRedo_RestoresAllShapesAndSelection()
+    {
+        var doc = new ShapeDocument();
+        var c1 = new CircleShape(0f, 0f, 0f, 5f);
+        var c2 = new CircleShape(10f, 10f, 0f, 5f);
+        doc.AddShape(c1);
+        doc.AddShape(c2);
+        doc.SelectAll();
+
+        var toDelete = doc.SelectedShapes.ToList();
+        var actions = new List<IUndoableAction>();
+        foreach (var s in toDelete)
+        {
+            int idx = doc.Shapes.IndexOf(s);
+            actions.Add(new DeleteShapeAction(doc, s, idx));
+        }
+
+        var composite = new CompositeAction(actions, "Delete 2 shapes", doc, toDelete, []);
+        doc.UndoManager.RecordAction(composite);
+        foreach (var s in toDelete)
+        {
+            doc.RemoveShape(s);
+        }
+
+        Assert.Empty(doc.Shapes);
+        Assert.Empty(doc.SelectedShapes);
+
+        // Undo
+        doc.UndoManager.Undo();
+        Assert.Equal(2, doc.Shapes.Count);
+        Assert.Equal(2, doc.SelectedShapes.Count);
+        Assert.True(c1.IsSelected);
+        Assert.True(c2.IsSelected);
+
+        // Redo
+        doc.UndoManager.Redo();
+        Assert.Empty(doc.Shapes);
+        Assert.Empty(doc.SelectedShapes);
+    }
+
+    [Fact]
+    public void MultiShapeDuplicate_UndoRedo_RemovesAndRestoresCopies()
+    {
+        var doc = new ShapeDocument();
+        var c1 = new CircleShape(0f, 0f, 0f, 5f);
+        var c2 = new CircleShape(10f, 10f, 0f, 5f);
+        doc.AddShape(c1);
+        doc.AddShape(c2);
+        doc.SelectAll();
+
+        var originals = doc.SelectedShapes.ToList();
+        var copies = new List<ToolpathShape>();
+        var actions = new List<IUndoableAction>();
+
+        foreach (var orig in originals)
+        {
+            var copy = orig.Clone();
+            copy.Translate(2f, 2f, 0f);
+            copies.Add(copy);
+        }
+
+        foreach (var copy in copies)
+        {
+            doc.AddShape(copy);
+            actions.Add(new AddShapeAction(doc, copy, doc.Shapes.Count - 1, $"Duplicate {copy.Name}"));
+        }
+
+        doc.SetSelection(copies);
+        var composite = new CompositeAction(actions, "Duplicate 2 shapes", doc, originals, copies);
+        doc.UndoManager.RecordAction(composite);
+
+        Assert.Equal(4, doc.Shapes.Count);
+        Assert.Equal(2, doc.SelectedShapes.Count);
+        Assert.True(copies[0].IsSelected);
+        Assert.True(copies[1].IsSelected);
+
+        // Undo removes duplicates and restores original selection
+        doc.UndoManager.Undo();
+        Assert.Equal(2, doc.Shapes.Count);
+        Assert.Equal(2, doc.SelectedShapes.Count);
+        Assert.True(c1.IsSelected);
+        Assert.True(c2.IsSelected);
+
+        // Redo restores duplicates and duplicate selection
+        doc.UndoManager.Redo();
+        Assert.Equal(4, doc.Shapes.Count);
+        Assert.Equal(2, doc.SelectedShapes.Count);
+        Assert.True(copies[0].IsSelected);
+        Assert.True(copies[1].IsSelected);
+    }
+
     private sealed class DummyAction(string description) : IUndoableAction
     {
         public string Description { get; } = description;
