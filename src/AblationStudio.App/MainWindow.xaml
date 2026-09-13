@@ -350,50 +350,6 @@
                     </StackPanel>
                 </ui:Button>
 
-                <!-- Export Machine File Button -->
-                <ui:Button Appearance="Secondary"
-                           Command="{Binding ExportMachineFileCommand}"
-                           ToolTip="Export Toolpath File (*.h) [Ctrl+E]"
-                           Margin="0,0,6,0">
-                    <StackPanel Orientation="Horizontal">
-                        <ui:SymbolIcon Symbol="ArrowExportUp24" Margin="0,0,6,0" />
-                        <TextBlock Text="Export (.h)" />
-                    </StackPanel>
-                </ui:Button>
-
-                <!-- Import Contour Shape Button -->
-                <ui:Button Appearance="Secondary"
-                           Command="{Binding ImportContourShapeCommand}"
-                           ToolTip="Import Contour Shape (*.cls) into Current Project [Ctrl+I]"
-                           Margin="0,0,12,0">
-                    <StackPanel Orientation="Horizontal">
-                        <ui:SymbolIcon Symbol="ArrowImport24" Margin="0,0,6,0" />
-                        <TextBlock Text="Import" />
-                    </StackPanel>
-                </ui:Button>
-
-                <!-- Undo Button -->
-                <ui:Button Appearance="Secondary"
-                           Command="{Binding UndoCommand}"
-                           ToolTip="{Binding UndoButtonTooltip}"
-                           Margin="0,0,4,0">
-                    <StackPanel Orientation="Horizontal">
-                        <ui:SymbolIcon Symbol="ArrowUndo24" Margin="0,0,6,0" />
-                        <TextBlock Text="Undo" />
-                    </StackPanel>
-                </ui:Button>
-
-                <!-- Redo Button -->
-                <ui:Button Appearance="Secondary"
-                           Command="{Binding RedoCommand}"
-                           ToolTip="{Binding RedoButtonTooltip}"
-                           Margin="0,0,12,0">
-                    <StackPanel Orientation="Horizontal">
-                        <ui:SymbolIcon Symbol="ArrowRedo24" Margin="0,0,6,0" />
-                        <TextBlock Text="Redo" />
-                    </StackPanel>
-                </ui:Button>
-
                 <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2,8,2" />
 
                 <!-- Camera View Presets -->
