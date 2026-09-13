@@ -720,10 +720,10 @@ public sealed class MainViewModel : ObservableObject
             Filter = ToolpathProject.ProjectFileFilter,
             DefaultExt = ToolpathProject.ProjectExtension,
             FileName = string.IsNullOrEmpty(ProjectName) || ProjectName == "Untitled"
-                ? "Untitled.abproj"
-                : (ProjectName.EndsWith(ToolpathProject.ProjectExtension, StringComparison.OrdinalIgnoreCase) || ProjectName.EndsWith(ToolpathProject.JsonExtension, StringComparison.OrdinalIgnoreCase)
+                ? $"Untitled{ToolpathProject.ProjectExtension}"
+                : (ProjectName.EndsWith(ToolpathProject.ProjectExtension, StringComparison.OrdinalIgnoreCase)
                     ? ProjectName
-                    : $"{ProjectName}.abproj")
+                    : $"{ProjectName}{ToolpathProject.ProjectExtension}")
         };
 
         if (dialog.ShowDialog() == true)
@@ -769,8 +769,8 @@ public sealed class MainViewModel : ObservableObject
         var dialog = new OpenFileDialog
         {
             Title = "Open Project or Machine File",
-            Filter = "All Supported Files (*.abproj;*.json;*.h;*.txt;*.cls)|*.abproj;*.json;*.h;*.txt;*.cls|" +
-                     "Ablation Studio Project (*.abproj;*.json)|*.abproj;*.json|" +
+            Filter = "All Supported Files (*.abs;*.h;*.txt;*.cls)|*.abs;*.h;*.txt;*.cls|" +
+                     "Ablation Studio Project (*.abs)|*.abs|" +
                      "Laser Toolpath (*.h;*.txt)|*.h;*.txt|" +
                      "Cutter Location Toolpath (*.cls)|*.cls|" +
                      "All Files (*.*)|*.*",
@@ -792,7 +792,7 @@ public sealed class MainViewModel : ObservableObject
         }
 
         string ext = Path.GetExtension(filePath).ToLowerInvariant();
-        if (ext is ".abproj" or ".json")
+        if (ext is ".abs")
         {
             await LoadProjectFileAsync(filePath);
         }

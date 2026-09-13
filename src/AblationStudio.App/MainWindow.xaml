@@ -331,7 +331,7 @@
                 <!-- Primary Action: Open Project / File Button -->
                 <ui:Button Appearance="Primary"
                            Command="{Binding OpenProjectCommand}"
-                           ToolTip="Open Project or Machine File (*.abproj, *.json, *.h) [Ctrl+O]"
+                           ToolTip="Open Project or Machine File (*.abs, *.h) [Ctrl+O]"
                            Margin="0,0,6,0">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="FolderOpen24" Margin="0,0,6,0" />
@@ -342,7 +342,7 @@
                 <!-- Save Project Button -->
                 <ui:Button Appearance="Secondary"
                            Command="{Binding SaveProjectCommand}"
-                           ToolTip="Save Project (*.abproj) [Ctrl+S]"
+                           ToolTip="Save Project (*.abs) [Ctrl+S]"
                            Margin="0,0,6,0">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="Save24" Margin="0,0,6,0" />

@@ -150,9 +150,16 @@ public sealed class ProjectSerializationTests
     }
 
     [Fact]
+    public void ToolpathProject_ProjectExtension_IsAbs()
+    {
+        Assert.Equal(".abs", ToolpathProject.ProjectExtension);
+        Assert.Equal("Ablation Studio Project (*.abs)|*.abs|All Files (*.*)|*.*", ToolpathProject.ProjectFileFilter);
+    }
+
+    [Fact]
     public async Task ProjectSerializer_SaveAndLoadFileAsync_RoundTripsSuccessfully()
     {
-        string tempFile = Path.Combine(Path.GetTempPath(), $"ablation_test_{Guid.NewGuid():N}.abproj");
+        string tempFile = Path.Combine(Path.GetTempPath(), $"ablation_test_{Guid.NewGuid():N}.abs");
 
         try
         {
