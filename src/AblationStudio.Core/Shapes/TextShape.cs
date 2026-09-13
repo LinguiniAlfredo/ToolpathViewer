@@ -3,11 +3,22 @@ using AblationStudio.Core.Shapes.Hatching;
 
 namespace AblationStudio.Core.Shapes;
 
-public sealed class PathShape : ToolpathShape, IContourShape
+public sealed class TextShape : ToolpathShape, IContourShape
 {
+    private string _text = "TEXT";
+    private string _fontFamily = "Arial";
+    private float _fontSize = 10.0f;
+    private bool _isBold;
+    private bool _isItalic;
+    private float _letterSpacing;
+    private float _rotationDegrees;
+
+    private readonly List<PathContour> _baseContours = [];
     private readonly List<PathContour> _contours = [];
 
-    public override string ShapeType => "Path";
+    public static ITextGeometryProvider? GeometryProvider { get; set; }
+
+    public override string ShapeType => "Text";
     public override bool IsClosed => _contours.Count > 0 && _contours.Any(c => c.IsClosed);
 
     public IReadOnlyList<PathContour> Contours => _contours;
@@ -40,25 +51,163 @@ public sealed class PathShape : ToolpathShape, IContourShape
         }
     }
 
-    public PathShape()
+    public string Text
     {
-        Name = "Path";
+        get => _text;
+        set
+        {
+            if (SetProperty(ref _text, value ?? string.Empty))
+            {
+                RebuildBaseContours();
+            }
+        }
     }
 
-    public PathShape(float centerX, float centerY, float centerZ, IEnumerable<PathContour> contours)
+    public string FontFamily
     {
-        Name = "Path";
+        get => _fontFamily;
+        set
+        {
+            if (SetProperty(ref _fontFamily, string.IsNullOrWhiteSpace(value) ? "Arial" : value))
+            {
+                RebuildBaseContours();
+            }
+        }
+    }
+
+    public float FontSize
+    {
+        get => _fontSize;
+        set
+        {
+            float val = MathF.Max(0.1f, value);
+            if (SetProperty(ref _fontSize, val))
+            {
+                RebuildBaseContours();
+            }
+        }
+    }
+
+    public bool IsBold
+    {
+        get => _isBold;
+        set
+        {
+            if (SetProperty(ref _isBold, value))
+            {
+                RebuildBaseContours();
+            }
+        }
+    }
+
+    public bool IsItalic
+    {
+        get => _isItalic;
+        set
+        {
+            if (SetProperty(ref _isItalic, value))
+            {
+                RebuildBaseContours();
+            }
+        }
+    }
+
+    public float LetterSpacing
+    {
+        get => _letterSpacing;
+        set
+        {
+            if (SetProperty(ref _letterSpacing, value))
+            {
+                RebuildBaseContours();
+            }
+        }
+    }
+
+    public float RotationDegrees
+    {
+        get => _rotationDegrees;
+        set
+        {
+            float val = (value % 360f + 360f) % 360f;
+            if (SetProperty(ref _rotationDegrees, val))
+            {
+                ApplyRotation();
+            }
+        }
+    }
+
+    public TextShape()
+    {
+        Name = "Text";
+        RebuildBaseContours();
+    }
+
+    public TextShape(
+        float centerX,
+        float centerY,
+        float centerZ,
+        string text = "TEXT",
+        string fontFamily = "Arial",
+        float fontSize = 10.0f,
+        bool isBold = false,
+        bool isItalic = false,
+        float letterSpacing = 0f,
+        float rotationDegrees = 0f)
+    {
+        Name = "Text";
         PositionX = centerX;
         PositionY = centerY;
         PositionZ = centerZ;
-        ArgumentNullException.ThrowIfNull(contours);
-        _contours.AddRange(contours);
+        _text = text ?? string.Empty;
+        _fontFamily = string.IsNullOrWhiteSpace(fontFamily) ? "Arial" : fontFamily;
+        _fontSize = MathF.Max(0.1f, fontSize);
+        _isBold = isBold;
+        _isItalic = isItalic;
+        _letterSpacing = letterSpacing;
+        _rotationDegrees = (rotationDegrees % 360f + 360f) % 360f;
+
+        RebuildBaseContours();
     }
 
-    public void AddContour(PathContour contour)
+    public void RebuildBaseContours()
     {
-        ArgumentNullException.ThrowIfNull(contour);
-        _contours.Add(contour);
+        _baseContours.Clear();
+
+        if (GeometryProvider is not null && !string.IsNullOrEmpty(_text))
+        {
+            IReadOnlyList<PathContour> generated = GeometryProvider.GenerateContours(
+                _text, _fontFamily, _fontSize, _isBold, _isItalic, _letterSpacing);
+
+            foreach (PathContour c in generated)
+            {
+                _baseContours.Add(c.Clone());
+            }
+        }
+
+        ApplyRotation();
+    }
+
+    private void ApplyRotation()
+    {
+        _contours.Clear();
+
+        float rad = _rotationDegrees * (MathF.PI / 180f);
+        float cos = MathF.Cos(rad);
+        float sin = MathF.Sin(rad);
+
+        foreach (PathContour baseContour in _baseContours)
+        {
+            var rotatedPts = new List<ToolpathPoint>(baseContour.PointsCount);
+            foreach (ToolpathPoint p in baseContour.LocalPoints)
+            {
+                float rx = p.X * cos - p.Y * sin;
+                float ry = p.X * sin + p.Y * cos;
+                rotatedPts.Add(new ToolpathPoint(rx, ry, p.Z));
+            }
+            _contours.Add(new PathContour(rotatedPts, baseContour.IsClosed));
+        }
+
         InvalidateHatchCache();
         OnPropertyChanged(nameof(ContoursCount));
         OnPropertyChanged(nameof(TotalPointsCount));
@@ -135,7 +284,7 @@ public sealed class PathShape : ToolpathShape, IContourShape
             }
         }
 
-        // Generate contiguous inner hatch infill across all closed contours
+        // Generate contiguous inner hatch infill across all closed character contours
         if (hasHatch)
         {
             if (CachedHatchSegments is null)
@@ -198,7 +347,7 @@ public sealed class PathShape : ToolpathShape, IContourShape
         float lx = worldX - PositionX;
         float ly = worldY - PositionY;
 
-        // Even-Odd point in loops test for closed contours
+        // Even-Odd point in loops test for closed contours (detects click inside character strokes)
         var closedLoops = new List<List<HatchGeometry.Point2D>>();
         foreach (PathContour contour in _contours)
         {
@@ -265,26 +414,14 @@ public sealed class PathShape : ToolpathShape, IContourShape
     {
         PositionX = originX + (PositionX - originX) * factor;
         PositionY = originY + (PositionY - originY) * factor;
-
-        foreach (PathContour contour in _contours)
-        {
-            contour.Scale(factor);
-        }
-
-        InvalidateHatchCache();
-        OnPropertyChanged(nameof(TotalPerimeterLength));
-        OnShapeModified();
+        FontSize = MathF.Max(0.1f, FontSize * factor);
     }
 
     public override ToolpathShape Clone()
     {
-        var clonedContours = new List<PathContour>(_contours.Count);
-        foreach (PathContour c in _contours)
-        {
-            clonedContours.Add(c.Clone());
-        }
-
-        var copy = new PathShape(PositionX, PositionY, PositionZ, clonedContours)
+        var copy = new TextShape(
+            PositionX, PositionY, PositionZ,
+            _text, _fontFamily, _fontSize, _isBold, _isItalic, _letterSpacing, _rotationDegrees)
         {
             Name = $"{Name} Copy",
             LayerId = LayerId,
@@ -292,79 +429,5 @@ public sealed class PathShape : ToolpathShape, IContourShape
         };
         copy.Hatch.CopyFrom(Hatch);
         return copy;
-    }
-
-    public static PathShape FromWorldContours(
-        IEnumerable<IReadOnlyList<ToolpathPoint>> worldContours,
-        string name = "Path",
-        int layerId = 1,
-        SegmentType cutType = SegmentType.Cut)
-    {
-        ArgumentNullException.ThrowIfNull(worldContours);
-
-        float minX = float.MaxValue, maxX = float.MinValue;
-        float minY = float.MaxValue, maxY = float.MinValue;
-        float minZ = float.MaxValue, maxZ = float.MinValue;
-        bool hasAnyPoint = false;
-
-        var rawContours = new List<IReadOnlyList<ToolpathPoint>>();
-
-        foreach (IReadOnlyList<ToolpathPoint> contour in worldContours)
-        {
-            if (contour.Count == 0)
-            {
-                continue;
-            }
-
-            hasAnyPoint = true;
-            rawContours.Add(contour);
-
-            foreach (ToolpathPoint p in contour)
-            {
-                minX = MathF.Min(minX, p.X);
-                maxX = MathF.Max(maxX, p.X);
-                minY = MathF.Min(minY, p.Y);
-                maxY = MathF.Max(maxY, p.Y);
-                minZ = MathF.Min(minZ, p.Z);
-                maxZ = MathF.Max(maxZ, p.Z);
-            }
-        }
-
-        if (!hasAnyPoint)
-        {
-            return new PathShape(0f, 0f, 0f, []) { Name = name, LayerId = layerId, CutType = cutType };
-        }
-
-        float cx = (minX + maxX) * 0.5f;
-        float cy = (minY + maxY) * 0.5f;
-        float cz = (minZ + maxZ) * 0.5f;
-
-        var localContours = new List<PathContour>(rawContours.Count);
-
-        foreach (IReadOnlyList<ToolpathPoint> worldPts in rawContours)
-        {
-            bool isClosed = worldPts.Count > 2 && worldPts[0].DistanceTo(worldPts[^1]) < 0.05f;
-            int count = worldPts.Count;
-            if (isClosed && worldPts[0].DistanceTo(worldPts[^1]) < 0.001f)
-            {
-                count--;
-            }
-
-            var pts = new List<ToolpathPoint>(count);
-            for (int i = 0; i < count; i++)
-            {
-                ToolpathPoint p = worldPts[i];
-                pts.Add(new ToolpathPoint(p.X - cx, p.Y - cy, p.Z - cz));
-            }
-
-            localContours.Add(new PathContour(pts, isClosed));
-        }
-
-        return new PathShape(cx, cy, cz, localContours)
-        {
-            Name = name,
-            LayerId = layerId,
-            CutType = cutType
-        };
     }
 }

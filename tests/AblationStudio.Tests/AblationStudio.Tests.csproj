@@ -19,6 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\AblationStudio.Core\AblationStudio.Core.csproj" />
     <ProjectReference Include="..\..\src\AblationStudio.Rendering\AblationStudio.Rendering.csproj" />
+    <ProjectReference Include="..\..\src\AblationStudio.App\AblationStudio.App.csproj" />
   </ItemGroup>
 
   <ItemGroup>

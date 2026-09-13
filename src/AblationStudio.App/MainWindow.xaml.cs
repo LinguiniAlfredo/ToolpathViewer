@@ -1,4 +1,8 @@
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+using System.Windows.Media;
 using AblationStudio.App.ViewModels;
 using AblationStudio.Rendering.Camera;
 using Wpf.Ui.Appearance;
@@ -105,6 +109,90 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 e.Handled = true;
             }
         }
+    }
+
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        base.OnPreviewKeyDown(e);
+
+        if (IsTextInputActive())
+        {
+            return;
+        }
+
+        if (Keyboard.Modifiers == ModifierKeys.None && DataContext is MainViewModel vm)
+        {
+            switch (e.Key)
+            {
+                case Key.V:
+                    vm.ActiveTool = ShapeToolType.Select;
+                    e.Handled = true;
+                    break;
+                case Key.L:
+                    vm.ActiveTool = ShapeToolType.Line;
+                    e.Handled = true;
+                    break;
+                case Key.R:
+                    vm.ActiveTool = ShapeToolType.Rectangle;
+                    e.Handled = true;
+                    break;
+                case Key.C:
+                    vm.ActiveTool = ShapeToolType.Circle;
+                    e.Handled = true;
+                    break;
+                case Key.P:
+                    vm.ActiveTool = ShapeToolType.Polygon;
+                    e.Handled = true;
+                    break;
+                case Key.T:
+                    vm.ActiveTool = ShapeToolType.Text;
+                    e.Handled = true;
+                    break;
+                case Key.Delete:
+                    if (vm.DeleteSelectedShapeCommand.CanExecute(null))
+                    {
+                        vm.DeleteSelectedShapeCommand.Execute(null);
+                        e.Handled = true;
+                    }
+                    break;
+                case Key.Escape:
+                    if (vm.DeselectShapeCommand.CanExecute(null))
+                    {
+                        vm.DeselectShapeCommand.Execute(null);
+                        e.Handled = true;
+                    }
+                    break;
+            }
+        }
+    }
+
+    private static bool IsTextInputActive()
+    {
+        IInputElement focused = Keyboard.FocusedElement;
+        if (focused is null)
+        {
+            return false;
+        }
+
+        if (focused is TextBoxBase or TextBox or PasswordBox or ComboBox)
+        {
+            return true;
+        }
+
+        if (focused is DependencyObject dep)
+        {
+            DependencyObject? current = dep;
+            while (current is not null)
+            {
+                if (current is TextBoxBase or TextBox or PasswordBox or ComboBox)
+                {
+                    return true;
+                }
+                current = VisualTreeHelper.GetParent(current);
+            }
+        }
+
+        return false;
     }
 
     private void OnWindowDragOver(object sender, DragEventArgs e)

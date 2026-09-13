@@ -134,13 +134,13 @@ public static class HatchGeometry
 
     public static List<List<Point2D>> GetPolygonLoops(ToolpathShape shape)
     {
-        if (shape is PathShape pathShape)
+        if (shape is IContourShape contourShape)
         {
-            var loops = new List<List<Point2D>>(pathShape.Contours.Count);
-            float px = pathShape.PositionX;
-            float py = pathShape.PositionY;
+            var loops = new List<List<Point2D>>(contourShape.Contours.Count);
+            float px = shape.PositionX;
+            float py = shape.PositionY;
 
-            foreach (PathContour contour in pathShape.Contours)
+            foreach (PathContour contour in contourShape.Contours)
             {
                 if (!contour.IsClosed || contour.PointsCount < 3)
                 {

@@ -8,6 +8,7 @@ using AblationStudio.Core.Projects;
 using AblationStudio.Core.Shapes;
 using AblationStudio.Core.Simulation;
 using AblationStudio.Rendering.Camera;
+using AblationStudio.App.Services;
 
 namespace AblationStudio.App.ViewModels;
 
@@ -38,6 +39,7 @@ public sealed class MainViewModel : ObservableObject
     private bool _showGhostTrail;
 
     public ShapeDocument CustomShapes { get; } = new();
+    public IReadOnlyList<string> AvailableFontFamilies { get; } = WpfTextGeometryProvider.GetInstalledFontFamilies();
 
     public ShapeToolType ActiveTool
     {
@@ -460,6 +462,8 @@ public sealed class MainViewModel : ObservableObject
 
     public MainViewModel()
     {
+        TextShape.GeometryProvider = new WpfTextGeometryProvider();
+
         NewFileCommand = new RelayCommand(ExecuteNewFile);
         SaveProjectCommand = new RelayCommand(async () => await ExecuteSaveProjectAsync(), () => CustomShapes.Shapes.Count > 0 || !string.IsNullOrEmpty(CurrentProjectPath));
         SaveProjectAsCommand = new RelayCommand(async () => await ExecuteSaveProjectAsAsync(), () => CustomShapes.Shapes.Count > 0 || !string.IsNullOrEmpty(CurrentProjectPath));

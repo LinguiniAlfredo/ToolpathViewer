@@ -22,7 +22,7 @@ public static class FollowProfileGenerator
             CircleShape circle => GetCircleRings(circle, stepover, z),
             RectangleShape rect => GetRectangleRings(rect, stepover, z),
             PolygonShape poly => GetPolygonRings(poly, stepover, z),
-            PathShape pathShape => GetPathShapeRings(pathShape, stepover, z),
+            IContourShape contourShape => GetContourShapeRings(contourShape, shape.PositionX, shape.PositionY, stepover, z),
             _ => GetGenericRings(shape, stepover, z)
         };
 
@@ -184,16 +184,16 @@ public static class FollowProfileGenerator
         return GetClipperRings(rawPaths, stepover, z);
     }
 
-    private static List<ProfileRing> GetPathShapeRings(
-        PathShape pathShape,
+    private static List<ProfileRing> GetContourShapeRings(
+        IContourShape contourShape,
+        float px,
+        float py,
         float stepover,
         float z)
     {
-        float px = pathShape.PositionX;
-        float py = pathShape.PositionY;
         var rawPaths = new PathsD();
 
-        foreach (PathContour contour in pathShape.Contours)
+        foreach (PathContour contour in contourShape.Contours)
         {
             if (!contour.IsClosed || contour.PointsCount < 3)
             {

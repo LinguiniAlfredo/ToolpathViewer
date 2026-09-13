@@ -332,6 +332,7 @@ public partial class OpenGLViewport : UserControl
                     ShapeToolType.Circle => new CircleShape(hitPoint.X, hitPoint.Y, planeZ, 0.05f),
                     ShapeToolType.Rectangle => new RectangleShape(hitPoint.X, hitPoint.Y, planeZ, 0.1f, 0.1f),
                     ShapeToolType.Polygon => new PolygonShape(hitPoint.X, hitPoint.Y, planeZ, 0.05f, 5),
+                    ShapeToolType.Text => new TextShape(hitPoint.X, hitPoint.Y, planeZ, "TEXT", "Arial", 10.0f),
                     _ => null
                 };
 
@@ -388,6 +389,14 @@ public partial class OpenGLViewport : UserControl
                         poly.Radius = MathF.Max(0.05f, pr);
                         float rot = MathF.Atan2(hitPoint.Y - _drawStartPoint.Y, hitPoint.X - _drawStartPoint.X) * (180f / MathF.PI);
                         poly.RotationDegrees = rot;
+                        break;
+
+                    case TextShape textShape:
+                        float dist = MathF.Sqrt(MathF.Pow(hitPoint.X - _drawStartPoint.X, 2) + MathF.Pow(hitPoint.Y - _drawStartPoint.Y, 2));
+                        if (dist > 1.0f)
+                        {
+                            textShape.FontSize = dist;
+                        }
                         break;
                 }
 
@@ -456,6 +465,7 @@ public partial class OpenGLViewport : UserControl
                     CircleShape circle => circle.Radius > 0.05f,
                     RectangleShape rect => rect.Width > 0.05f && rect.Height > 0.05f,
                     PolygonShape poly => poly.Radius > 0.05f,
+                    TextShape text => text.ContoursCount > 0,
                     _ => false
                 };
 

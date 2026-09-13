@@ -1,4 +1,4 @@
-﻿namespace AblationStudio.App.ViewModels;
+namespace AblationStudio.App.ViewModels;
 
 public enum ShapeToolType
 {
@@ -6,5 +6,6 @@ public enum ShapeToolType
     Line,
     Circle,
     Rectangle,
-    Polygon
+    Polygon,
+    Text
 }

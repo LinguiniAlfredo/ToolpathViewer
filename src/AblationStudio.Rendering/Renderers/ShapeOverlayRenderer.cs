@@ -1,4 +1,4 @@
-﻿using OpenTK.Graphics.OpenGL4;
+using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using AblationStudio.Core.Models;
 using AblationStudio.Core.Shapes;
@@ -68,14 +68,46 @@ public sealed class ShapeOverlayRenderer : IDisposable
 
         var vertices = new List<float>();
 
-        for (int i = 0; i < points.Count - 1; i++)
+        if (shape is IContourShape contourShape)
         {
-            AddSegment(vertices, points[i], points[i + 1], PreviewColor);
-        }
+            float px = shape.PositionX;
+            float py = shape.PositionY;
+            float pz = shape.PositionZ;
 
-        if (shape.IsClosed && points.Count > 2)
+            foreach (PathContour contour in contourShape.Contours)
+            {
+                IReadOnlyList<ToolpathPoint> pts = contour.LocalPoints;
+                if (pts.Count < 2)
+                {
+                    continue;
+                }
+
+                for (int i = 0; i < pts.Count - 1; i++)
+                {
+                    var p1 = new ToolpathPoint(px + pts[i].X, py + pts[i].Y, pz + pts[i].Z);
+                    var p2 = new ToolpathPoint(px + pts[i + 1].X, py + pts[i + 1].Y, pz + pts[i + 1].Z);
+                    AddSegment(vertices, p1, p2, PreviewColor);
+                }
+
+                if (contour.IsClosed && pts.Count > 2)
+                {
+                    var pEnd = new ToolpathPoint(px + pts[^1].X, py + pts[^1].Y, pz + pts[^1].Z);
+                    var pStart = new ToolpathPoint(px + pts[0].X, py + pts[0].Y, pz + pts[0].Z);
+                    AddSegment(vertices, pEnd, pStart, PreviewColor);
+                }
+            }
+        }
+        else
         {
-            AddSegment(vertices, points[^1], points[0], PreviewColor);
+            for (int i = 0; i < points.Count - 1; i++)
+            {
+                AddSegment(vertices, points[i], points[i + 1], PreviewColor);
+            }
+
+            if (shape.IsClosed && points.Count > 2)
+            {
+                AddSegment(vertices, points[^1], points[0], PreviewColor);
+            }
         }
 
         UploadData(_previewVao, _previewVbo, vertices);

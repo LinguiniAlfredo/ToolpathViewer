@@ -32,13 +32,6 @@
         <KeyBinding Key="I" Modifiers="Control" Command="{Binding ImportMachineFileCommand}" />
         <KeyBinding Key="F" Modifiers="Control" Command="{Binding FitViewCommand}" />
         <KeyBinding Key="D" Modifiers="Control" Command="{Binding DuplicateSelectedShapeCommand}" />
-        <KeyBinding Key="V" Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ShapeToolType.Select}" />
-        <KeyBinding Key="L" Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ShapeToolType.Line}" />
-        <KeyBinding Key="R" Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ShapeToolType.Rectangle}" />
-        <KeyBinding Key="C" Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ShapeToolType.Circle}" />
-        <KeyBinding Key="P" Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ShapeToolType.Polygon}" />
-        <KeyBinding Key="Delete" Command="{Binding DeleteSelectedShapeCommand}" />
-        <KeyBinding Key="Escape" Command="{Binding DeselectShapeCommand}" />
     </Window.InputBindings>
 
     <Grid>
@@ -288,7 +281,7 @@
                             <ui:SymbolIcon Symbol="Stop24" />
                         </MenuItem.Icon>
                     </MenuItem>
-                    <MenuItem Header="Live Path _Trace (Progressive)"
+                    <MenuItem Header="Live Path _Trace"
                               IsCheckable="True"
                               IsChecked="{Binding IsProgressiveSimulation}" />
                 </MenuItem>
@@ -640,6 +633,24 @@
                             </Style>
                         </ui:Button.Style>
                         <ui:SymbolIcon Symbol="Pentagon20" />
+                    </ui:Button>
+
+                    <!-- Text Tool -->
+                    <ui:Button Command="{Binding SelectToolCommand}"
+                               CommandParameter="{x:Static vm:ShapeToolType.Text}"
+                               ToolTip="Text Tool (Click or drag on grid to place text) [T]"
+                               Width="38" Height="38" Margin="0,2" Padding="0">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                <Setter Property="Appearance" Value="Transparent" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ActiveTool}" Value="{x:Static vm:ShapeToolType.Text}">
+                                        <Setter Property="Appearance" Value="Primary" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                        <ui:SymbolIcon Symbol="TextFont24" />
                     </ui:Button>
 
                 </StackPanel>
@@ -1238,6 +1249,73 @@
                                             </StackPanel>
                                         </Grid>
 
+                                        <Grid Margin="0,2">
+                                            <TextBlock Text="Total Perimeter:" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock Text="{Binding SelectedShape.TotalPerimeterLength, StringFormat='{}{0:F2} mm'}" FontWeight="SemiBold" HorizontalAlignment="Right" />
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <!-- Text Parameters -->
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedShape.ShapeType}" Value="Text">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+
+                                        <TextBlock Text="Text Content:" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,2" />
+                                        <ui:TextBox Text="{Binding SelectedShape.Text, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+
+                                        <TextBlock Text="Font Family:" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,2" />
+                                        <ComboBox ItemsSource="{Binding AvailableFontFamilies}"
+                                                  SelectedItem="{Binding SelectedShape.FontFamily, UpdateSourceTrigger=PropertyChanged}"
+                                                  HorizontalAlignment="Stretch"
+                                                  Margin="0,0,0,8" />
+
+                                        <Grid Margin="0,2,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="Height (mm):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
+                                                <ui:TextBox Text="{Binding SelectedShape.FontSize, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Spacing (mm):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
+                                                <ui:TextBox Text="{Binding SelectedShape.LetterSpacing, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <Grid Margin="0,2,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <CheckBox Grid.Column="0"
+                                                      IsChecked="{Binding SelectedShape.IsBold, Mode=TwoWay}"
+                                                      Content="Bold"
+                                                      FontSize="11" />
+                                            <CheckBox Grid.Column="2"
+                                                      IsChecked="{Binding SelectedShape.IsItalic, Mode=TwoWay}"
+                                                      Content="Italic"
+                                                      FontSize="11" />
+                                        </Grid>
+
+                                        <TextBlock Text="Rotation Angle (°):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,2" />
+                                        <ui:TextBox Text="{Binding SelectedShape.RotationDegrees, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+
+                                        <Grid Margin="0,2">
+                                            <TextBlock Text="Glyph Contours:" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock Text="{Binding SelectedShape.ContoursCount}" FontWeight="SemiBold" HorizontalAlignment="Right" />
+                                        </Grid>
                                         <Grid Margin="0,2">
                                             <TextBlock Text="Total Perimeter:" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                             <TextBlock Text="{Binding SelectedShape.TotalPerimeterLength, StringFormat='{}{0:F2} mm'}" FontWeight="SemiBold" HorizontalAlignment="Right" />

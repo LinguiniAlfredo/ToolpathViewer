@@ -10,6 +10,7 @@ namespace AblationStudio.Core.Projects;
 [JsonDerivedType(typeof(PolygonShapeDto), "polygon")]
 [JsonDerivedType(typeof(LineShapeDto), "line")]
 [JsonDerivedType(typeof(PathShapeDto), "path")]
+[JsonDerivedType(typeof(TextShapeDto), "text")]
 public abstract class ShapeDto
 {
     public string Id { get; set; } = string.Empty;
@@ -59,6 +60,16 @@ public abstract class ShapeDto
                     LocalPoints = [.. c.LocalPoints],
                     IsClosed = c.IsClosed
                 }).ToList()
+            },
+            TextShape text => new TextShapeDto
+            {
+                Text = text.Text,
+                FontFamily = text.FontFamily,
+                FontSize = text.FontSize,
+                IsBold = text.IsBold,
+                IsItalic = text.IsItalic,
+                LetterSpacing = text.LetterSpacing,
+                RotationDegrees = text.RotationDegrees
             },
             _ => throw new NotSupportedException($"Shape type '{shape.GetType().Name}' is not supported for serialization.")
         };
@@ -152,6 +163,26 @@ public sealed class PathShapeDto : ShapeDto
         var path = new PathShape(PositionX, PositionY, PositionZ, contours);
         PopulateCommonProperties(path);
         return path;
+    }
+}
+
+public sealed class TextShapeDto : ShapeDto
+{
+    public string Text { get; set; } = "TEXT";
+    public string FontFamily { get; set; } = "Arial";
+    public float FontSize { get; set; } = 10.0f;
+    public bool IsBold { get; set; }
+    public bool IsItalic { get; set; }
+    public float LetterSpacing { get; set; }
+    public float RotationDegrees { get; set; }
+
+    public override ToolpathShape ToShape()
+    {
+        var textShape = new TextShape(
+            PositionX, PositionY, PositionZ,
+            Text, FontFamily, FontSize, IsBold, IsItalic, LetterSpacing, RotationDegrees);
+        PopulateCommonProperties(textShape);
+        return textShape;
     }
 }
 
