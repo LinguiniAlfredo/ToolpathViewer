@@ -310,6 +310,25 @@ public sealed class PathShape : ToolpathShape, IContourShape
         }
     }
 
+    public override void CopyAllFrom(ToolpathShape source)
+    {
+        base.CopyAllFrom(source);
+        if (source is PathShape path)
+        {
+            _contours.Clear();
+            foreach (PathContour c in path._contours)
+            {
+                _contours.Add(c.Clone());
+            }
+            InvalidateHatchCache();
+            OnPropertyChanged(nameof(ContoursCount));
+            OnPropertyChanged(nameof(TotalPointsCount));
+            OnPropertyChanged(nameof(TotalPerimeterLength));
+            OnPropertyChanged(nameof(IsClosed));
+            OnShapeModified();
+        }
+    }
+
     public override ToolpathShape Clone()
     {
         var clonedContours = new List<PathContour>(_contours.Count);
@@ -320,7 +339,7 @@ public sealed class PathShape : ToolpathShape, IContourShape
 
         var copy = new PathShape(PositionX, PositionY, PositionZ, clonedContours)
         {
-            Name = $"{Name} Copy",
+            Name = Name,
             LayerId = LayerId,
             CutType = CutType
         };

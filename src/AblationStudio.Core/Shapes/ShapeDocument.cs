@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Text;
+using AblationStudio.Core.History;
+using AblationStudio.Core.History.Actions;
 using AblationStudio.Core.Models;
 using AblationStudio.Core.Projects;
 
@@ -10,7 +12,12 @@ public sealed class ShapeDocument
     private readonly ObservableCollection<ToolpathShape> _shapes = [];
     private ToolpathShape? _selectedShape;
 
+    private ToolpathShape? _activeEditingShape;
+    private ToolpathShape? _activeBeforeSnapshot;
+    private string? _activeEditingProperty;
+
     public ReadOnlyObservableCollection<ToolpathShape> Shapes { get; }
+    public UndoRedoManager UndoManager { get; } = new();
 
     public ToolpathShape? SelectedShape
     {
@@ -53,8 +60,21 @@ public sealed class ShapeDocument
 
     public void AddShape(ToolpathShape shape)
     {
+        ArgumentNullException.ThrowIfNull(shape);
         shape.ShapeChanged += OnShapeChanged;
+        shape.PropertyChanging += OnShapePropertyChanging;
         _shapes.Add(shape);
+        SelectedShape = shape;
+        DocumentChanged?.Invoke();
+    }
+
+    public void InsertShape(int index, ToolpathShape shape)
+    {
+        ArgumentNullException.ThrowIfNull(shape);
+        shape.ShapeChanged += OnShapeChanged;
+        shape.PropertyChanging += OnShapePropertyChanging;
+        int clamped = Math.Clamp(index, 0, _shapes.Count);
+        _shapes.Insert(clamped, shape);
         SelectedShape = shape;
         DocumentChanged?.Invoke();
     }
@@ -62,6 +82,7 @@ public sealed class ShapeDocument
     public bool RemoveShape(ToolpathShape shape)
     {
         shape.ShapeChanged -= OnShapeChanged;
+        shape.PropertyChanging -= OnShapePropertyChanging;
         bool removed = _shapes.Remove(shape);
         if (removed)
         {
@@ -79,12 +100,22 @@ public sealed class ShapeDocument
         foreach (ToolpathShape s in _shapes)
         {
             s.ShapeChanged -= OnShapeChanged;
+            s.PropertyChanging -= OnShapePropertyChanging;
             s.IsSelected = false;
         }
 
         _shapes.Clear();
         SelectedShape = null;
+        FlushPropertyCoalescing();
         DocumentChanged?.Invoke();
+    }
+
+    public void FlushPropertyCoalescing()
+    {
+        _activeEditingShape = null;
+        _activeEditingProperty = null;
+        _activeBeforeSnapshot = null;
+        UndoManager.FlushCoalescing();
     }
 
     public ToolpathShape? HitTest(float worldX, float worldY, float tolerance = 0.5f)
@@ -234,8 +265,45 @@ public sealed class ShapeDocument
         return sb.ToString();
     }
 
+    private void OnShapePropertyChanging(ToolpathShape shape, string propertyName)
+    {
+        if (UndoManager.IsPerformingUndoRedo || IsDragging || UndoManager.IsRecordingSuppressed)
+        {
+            return;
+        }
+
+        string coalesceKey = $"{shape.Id}:{propertyName}";
+        if (_activeEditingShape == shape && _activeEditingProperty == propertyName && _activeBeforeSnapshot is not null && UndoManager.CanCoalesce(coalesceKey))
+        {
+            return;
+        }
+
+        _activeEditingShape = shape;
+        _activeEditingProperty = propertyName;
+        _activeBeforeSnapshot = shape.Clone();
+    }
+
     private void OnShapeChanged(ToolpathShape shape)
     {
+        if (!UndoManager.IsPerformingUndoRedo && !IsDragging && !UndoManager.IsRecordingSuppressed)
+        {
+            if (_activeEditingShape == shape && _activeBeforeSnapshot is not null && _activeEditingProperty is not null)
+            {
+                var afterSnapshot = shape.Clone();
+                string coalesceKey = $"{shape.Id}:{_activeEditingProperty}";
+                string description = $"Change {_activeEditingProperty}";
+
+                UndoManager.RecordAction(new ModifyShapeAction(
+                    shape,
+                    _activeBeforeSnapshot,
+                    afterSnapshot,
+                    description,
+                    coalesceKey,
+                    this,
+                    wasSelected: shape.IsSelected));
+            }
+        }
+
         DocumentChanged?.Invoke();
     }
 }

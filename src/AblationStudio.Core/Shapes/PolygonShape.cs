@@ -120,6 +120,22 @@ public sealed class PolygonShape : ToolpathShape
         }
     }
 
+    public override void CopyAllFrom(ToolpathShape source)
+    {
+        base.CopyAllFrom(source);
+        if (source is PolygonShape poly)
+        {
+            _radius = poly._radius;
+            _sides = poly._sides;
+            _rotationDegrees = poly._rotationDegrees;
+            OnPropertyChanged(nameof(Radius));
+            OnPropertyChanged(nameof(Sides));
+            OnPropertyChanged(nameof(RotationDegrees));
+            InvalidateHatchCache();
+            OnShapeModified();
+        }
+    }
+
     public override bool HitTest(float worldX, float worldY, float tolerance)
     {
         float dist = MathF.Sqrt(MathF.Pow(worldX - PositionX, 2) + MathF.Pow(worldY - PositionY, 2));
@@ -130,7 +146,7 @@ public sealed class PolygonShape : ToolpathShape
     {
         var copy = new PolygonShape(PositionX, PositionY, PositionZ, Radius, Sides, RotationDegrees)
         {
-            Name = $"{Name} Copy",
+            Name = Name,
             LayerId = LayerId,
             CutType = CutType
         };

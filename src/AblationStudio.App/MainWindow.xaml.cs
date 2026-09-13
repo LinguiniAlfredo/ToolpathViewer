@@ -43,6 +43,15 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             };
 
             UpdateViewportToggles(vm);
+
+            LostFocus += (s, args) =>
+            {
+                if (args.OriginalSource is TextBox or Slider or ComboBox)
+                {
+                    vm.CustomShapes.FlushPropertyCoalescing();
+                }
+            };
+
             Dispatcher.InvokeAsync(() => Viewport.RequestRedraw(), System.Windows.Threading.DispatcherPriority.Loaded);
             Dispatcher.InvokeAsync(() => Viewport.RequestRedraw(), System.Windows.Threading.DispatcherPriority.Render);
         }
@@ -98,6 +107,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             {
                 var binding = System.Windows.Data.BindingOperations.GetBindingExpression(textBox, System.Windows.Controls.TextBox.TextProperty);
                 binding?.UpdateSource();
+                if (DataContext is MainViewModel vm)
+                {
+                    vm.CustomShapes.FlushPropertyCoalescing();
+                }
                 System.Windows.Input.Keyboard.ClearFocus();
                 e.Handled = true;
             }

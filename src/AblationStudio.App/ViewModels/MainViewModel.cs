@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows.Input;
 using Microsoft.Win32;
+using AblationStudio.Core.History;
+using AblationStudio.Core.History.Actions;
 using AblationStudio.Core.Models;
 using AblationStudio.Core.Parser;
 using AblationStudio.Core.Projects;
@@ -435,6 +437,15 @@ public sealed class MainViewModel : ObservableObject
     }
 
     // Commands
+    public ICommand UndoCommand { get; }
+    public ICommand RedoCommand { get; }
+    public string UndoButtonTooltip => CustomShapes.UndoManager.CanUndo
+        ? $"Undo {CustomShapes.UndoManager.UndoActionName} [Ctrl+Z]"
+        : "Nothing to undo";
+    public string RedoButtonTooltip => CustomShapes.UndoManager.CanRedo
+        ? $"Redo {CustomShapes.UndoManager.RedoActionName} [Ctrl+Y]"
+        : "Nothing to redo";
+
     public ICommand NewFileCommand { get; }
     public ICommand OpenFileCommand { get; }
     public ICommand SaveProjectCommand { get; }
@@ -464,6 +475,10 @@ public sealed class MainViewModel : ObservableObject
     {
         TextShape.GeometryProvider = new WpfTextGeometryProvider();
 
+        UndoCommand = new RelayCommand(ExecuteUndo, () => CustomShapes.UndoManager.CanUndo);
+        RedoCommand = new RelayCommand(ExecuteRedo, () => CustomShapes.UndoManager.CanRedo);
+        CustomShapes.UndoManager.StateChanged += OnUndoManagerStateChanged;
+
         NewFileCommand = new RelayCommand(ExecuteNewFile);
         SaveProjectCommand = new RelayCommand(async () => await ExecuteSaveProjectAsync(), () => CustomShapes.Shapes.Count > 0 || !string.IsNullOrEmpty(CurrentProjectPath));
         SaveProjectAsCommand = new RelayCommand(async () => await ExecuteSaveProjectAsAsync(), () => CustomShapes.Shapes.Count > 0 || !string.IsNullOrEmpty(CurrentProjectPath));
@@ -491,7 +506,7 @@ public sealed class MainViewModel : ObservableObject
 
         SelectToolCommand = new RelayCommand<ShapeToolType>(tool => ActiveTool = tool);
         DeleteSelectedShapeCommand = new RelayCommand(ExecuteDeleteSelectedShape, () => HasSelectedShape);
-        ClearAllShapesCommand = new RelayCommand(() => CustomShapes.Clear(), () => CustomShapes.Shapes.Count > 0);
+        ClearAllShapesCommand = new RelayCommand(ExecuteClearAllShapes, () => CustomShapes.Shapes.Count > 0);
         DeselectShapeCommand = new RelayCommand(() => CustomShapes.SelectedShape = null, () => HasSelectedShape);
         DuplicateSelectedShapeCommand = new RelayCommand(ExecuteDuplicateSelectedShape, () => HasSelectedShape);
 
@@ -611,9 +626,51 @@ public sealed class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(SimulationSegmentType));
     }
 
+    private void OnUndoManagerStateChanged()
+    {
+        IsProjectModified = CustomShapes.UndoManager.IsModified;
+        OnPropertyChanged(nameof(UndoButtonTooltip));
+        OnPropertyChanged(nameof(RedoButtonTooltip));
+        (UndoCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (RedoCommand as RelayCommand)?.RaiseCanExecuteChanged();
+    }
+
+    private void ExecuteUndo()
+    {
+        if (CustomShapes.UndoManager.CanUndo)
+        {
+            string desc = CustomShapes.UndoManager.UndoActionName;
+            CustomShapes.UndoManager.Undo();
+            StatusText = $"Undid: {desc}";
+            RequestRender?.Invoke();
+        }
+    }
+
+    private void ExecuteRedo()
+    {
+        if (CustomShapes.UndoManager.CanRedo)
+        {
+            string desc = CustomShapes.UndoManager.RedoActionName;
+            CustomShapes.UndoManager.Redo();
+            StatusText = $"Redid: {desc}";
+            RequestRender?.Invoke();
+        }
+    }
+
+    private void ExecuteClearAllShapes()
+    {
+        if (CustomShapes.Shapes.Count > 0)
+        {
+            CustomShapes.UndoManager.RecordAction(new ClearShapesAction(CustomShapes, CustomShapes.Shapes, SelectedShape));
+            CustomShapes.Clear();
+        }
+    }
+
     private void ExecuteNewFile()
     {
         CustomShapes.Clear();
+        CustomShapes.UndoManager.Clear();
+        CustomShapes.UndoManager.MarkSaved();
         LoadedToolpath = Toolpath.Empty;
         CurrentFilePath = string.Empty;
         CurrentProjectPath = string.Empty;
@@ -680,6 +737,7 @@ public sealed class MainViewModel : ObservableObject
 
             CurrentProjectPath = filePath;
             ProjectName = Path.GetFileNameWithoutExtension(filePath);
+            CustomShapes.UndoManager.MarkSaved();
             IsProjectModified = false;
             StatusText = $"Project saved to {Path.GetFileName(filePath)} ({project.Shapes.Count} shapes).";
         }
@@ -765,6 +823,8 @@ public sealed class MainViewModel : ObservableObject
 
             Toolpath toolpath = await ToolpathParser.ParseFileAsync(filePath);
             CustomShapes.Clear();
+            CustomShapes.UndoManager.Clear();
+            CustomShapes.UndoManager.MarkSaved();
             LoadedToolpath = toolpath;
             CurrentFilePath = filePath;
             CurrentProjectPath = string.Empty;
@@ -794,7 +854,12 @@ public sealed class MainViewModel : ObservableObject
 
             ToolpathProject project = await ProjectSerializer.LoadProjectAsync(filePath);
 
-            CustomShapes.LoadFromProject(project);
+            using (CustomShapes.UndoManager.SuppressRecording())
+            {
+                CustomShapes.LoadFromProject(project);
+            }
+            CustomShapes.UndoManager.Clear();
+            CustomShapes.UndoManager.MarkSaved();
             CurrentProjectPath = filePath;
             CurrentFilePath = string.Empty;
             ProjectName = project.Name;
@@ -874,7 +939,12 @@ public sealed class MainViewModel : ObservableObject
                 // Add to current project without clearing existing shapes
                 CustomShapes.AddShape(importedShape);
                 CustomShapes.SelectedShape = importedShape;
-                IsProjectModified = true;
+                CustomShapes.UndoManager.RecordAction(new AddShapeAction(
+                    CustomShapes,
+                    importedShape,
+                    CustomShapes.Shapes.Count - 1,
+                    $"Import {importedShape.Name}"));
+                IsProjectModified = CustomShapes.UndoManager.IsModified;
 
                 // If current project was an empty "Untitled" canvas, adopt the file name for project name
                 if (CustomShapes.Shapes.Count == 1 && (string.IsNullOrEmpty(ProjectName) || ProjectName == "Untitled"))
@@ -941,7 +1011,7 @@ public sealed class MainViewModel : ObservableObject
 
     private void OnCustomShapesDocumentChanged()
     {
-        IsProjectModified = true;
+        IsProjectModified = CustomShapes.UndoManager.IsModified;
 
         if (CustomShapes.Shapes.Count > 0)
         {
@@ -974,7 +1044,10 @@ public sealed class MainViewModel : ObservableObject
     {
         if (SelectedShape is not null)
         {
-            CustomShapes.RemoveShape(SelectedShape);
+            ToolpathShape shape = SelectedShape;
+            int idx = CustomShapes.Shapes.IndexOf(shape);
+            CustomShapes.UndoManager.RecordAction(new DeleteShapeAction(CustomShapes, shape, idx, $"Delete {shape.Name}"));
+            CustomShapes.RemoveShape(shape);
         }
     }
 
@@ -982,9 +1055,16 @@ public sealed class MainViewModel : ObservableObject
     {
         if (SelectedShape is not null)
         {
-            ToolpathShape copy = SelectedShape.Clone();
+            ToolpathShape original = SelectedShape;
+            ToolpathShape copy = original.Clone();
             copy.Translate(2.0f, 2.0f, 0f);
+            EnsureUniqueShapeName(copy);
             CustomShapes.AddShape(copy);
+            CustomShapes.UndoManager.RecordAction(new AddShapeAction(
+                CustomShapes,
+                copy,
+                CustomShapes.Shapes.Count - 1,
+                $"Duplicate {original.Name}"));
         }
     }
 

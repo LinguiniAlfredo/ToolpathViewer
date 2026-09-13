@@ -135,6 +135,23 @@ public sealed class LineShape : ToolpathShape
         }
     }
 
+    public override void CopyAllFrom(ToolpathShape source)
+    {
+        base.CopyAllFrom(source);
+        if (source is LineShape line)
+        {
+            _endX = line._endX;
+            _endY = line._endY;
+            _endZ = line._endZ;
+            OnPropertyChanged(nameof(EndX));
+            OnPropertyChanged(nameof(EndY));
+            OnPropertyChanged(nameof(EndZ));
+            OnPropertyChanged(nameof(Length));
+            OnPropertyChanged(nameof(AngleDegrees));
+            OnShapeModified();
+        }
+    }
+
     public override bool HitTest(float worldX, float worldY, float tolerance)
     {
         float ax = PositionX, ay = PositionY;
@@ -160,7 +177,7 @@ public sealed class LineShape : ToolpathShape
 
     public override ToolpathShape Clone() => new LineShape(PositionX, PositionY, PositionZ, EndX, EndY, EndZ)
     {
-        Name = $"{Name} Copy",
+        Name = Name,
         LayerId = LayerId,
         CutType = CutType
     };

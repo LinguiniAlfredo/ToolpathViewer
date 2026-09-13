@@ -112,6 +112,21 @@ public sealed class CircleShape : ToolpathShape
         }
     }
 
+    public override void CopyAllFrom(ToolpathShape source)
+    {
+        base.CopyAllFrom(source);
+        if (source is CircleShape circle)
+        {
+            _radius = circle._radius;
+            _segmentsCount = circle._segmentsCount;
+            OnPropertyChanged(nameof(Radius));
+            OnPropertyChanged(nameof(Diameter));
+            OnPropertyChanged(nameof(SegmentsCount));
+            InvalidateHatchCache();
+            OnShapeModified();
+        }
+    }
+
     public override bool HitTest(float worldX, float worldY, float tolerance)
     {
         float dist = MathF.Sqrt(MathF.Pow(worldX - PositionX, 2) + MathF.Pow(worldY - PositionY, 2));
@@ -123,7 +138,7 @@ public sealed class CircleShape : ToolpathShape
     {
         var copy = new CircleShape(PositionX, PositionY, PositionZ, Radius, SegmentsCount)
         {
-            Name = $"{Name} Copy",
+            Name = Name,
             LayerId = LayerId,
             CutType = CutType
         };

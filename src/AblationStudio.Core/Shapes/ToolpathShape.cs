@@ -16,6 +16,7 @@ public abstract class ToolpathShape : INotifyPropertyChanged
     private bool _isSelected;
 
     public event PropertyChangedEventHandler? PropertyChanged;
+    public event Action<ToolpathShape, string>? PropertyChanging;
     public event Action<ToolpathShape>? ShapeChanged;
 
     protected List<ToolpathSegment>? CachedHatchSegments;
@@ -30,6 +31,7 @@ public abstract class ToolpathShape : INotifyPropertyChanged
             InvalidateHatchCache();
             OnShapeModified();
         };
+        Hatch.PropertyChanging += prop => PropertyChanging?.Invoke(this, $"Hatch.{prop}");
     }
 
     public void InvalidateHatchCache()
@@ -40,7 +42,13 @@ public abstract class ToolpathShape : INotifyPropertyChanged
     public string Name
     {
         get => _name;
-        set => SetProperty(ref _name, value);
+        set
+        {
+            if (SetProperty(ref _name, value))
+            {
+                OnShapeModified();
+            }
+        }
     }
 
     public float PositionX
@@ -252,6 +260,27 @@ public abstract class ToolpathShape : INotifyPropertyChanged
         OnShapeModified();
     }
 
+    public virtual void CopyAllFrom(ToolpathShape source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        _name = source._name;
+        _positionX = source._positionX;
+        _positionY = source._positionY;
+        _positionZ = source._positionZ;
+        _layerId = source._layerId;
+        _cutType = source._cutType;
+        Hatch.CopyFrom(source.Hatch);
+
+        InvalidateHatchCache();
+        OnPropertyChanged(nameof(Name));
+        OnPropertyChanged(nameof(PositionX));
+        OnPropertyChanged(nameof(PositionY));
+        OnPropertyChanged(nameof(PositionZ));
+        OnPropertyChanged(nameof(LayerId));
+        OnPropertyChanged(nameof(CutType));
+        OnShapeModified();
+    }
+
     public static (float X, float Y) RotatePoint(float x, float y, float originX, float originY, float deltaAngleDegrees)
     {
         if (MathF.Abs(deltaAngleDegrees) < 1e-6f)
@@ -286,6 +315,7 @@ public abstract class ToolpathShape : INotifyPropertyChanged
             return false;
         }
 
+        PropertyChanging?.Invoke(this, propertyName ?? string.Empty);
         storage = value;
         OnPropertyChanged(propertyName);
         return true;

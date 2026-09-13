@@ -129,6 +129,21 @@ public sealed class RectangleShape : ToolpathShape
         }
     }
 
+    public override void CopyAllFrom(ToolpathShape source)
+    {
+        base.CopyAllFrom(source);
+        if (source is RectangleShape rect)
+        {
+            _width = rect._width;
+            _height = rect._height;
+            _rotationDegrees = rect._rotationDegrees;
+            OnPropertyChanged(nameof(Width));
+            OnPropertyChanged(nameof(Height));
+            OnPropertyChanged(nameof(RotationDegrees));
+            OnShapeModified();
+        }
+    }
+
     public override bool HitTest(float worldX, float worldY, float tolerance)
     {
         float dx = worldX - PositionX;
@@ -148,7 +163,7 @@ public sealed class RectangleShape : ToolpathShape
     {
         var copy = new RectangleShape(PositionX, PositionY, PositionZ, Width, Height, RotationDegrees)
         {
-            Name = $"{Name} Copy",
+            Name = Name,
             LayerId = LayerId,
             CutType = CutType
         };

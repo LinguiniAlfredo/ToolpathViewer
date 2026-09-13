@@ -19,6 +19,7 @@ public sealed class HatchSettings : INotifyPropertyChanged
     private bool _followProfileOutward;
 
     public event PropertyChangedEventHandler? PropertyChanged;
+    public event Action<string>? PropertyChanging;
     public event Action? SettingsChanged;
 
     public bool IsEnabled
@@ -202,6 +203,7 @@ public sealed class HatchSettings : INotifyPropertyChanged
             return false;
         }
 
+        PropertyChanging?.Invoke(propertyName ?? string.Empty);
         storage = value;
         OnPropertyChanged(propertyName);
         return true;

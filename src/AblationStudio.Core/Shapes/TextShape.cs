@@ -448,13 +448,36 @@ public sealed class TextShape : ToolpathShape, IContourShape
         }
     }
 
+    public override void CopyAllFrom(ToolpathShape source)
+    {
+        base.CopyAllFrom(source);
+        if (source is TextShape text)
+        {
+            _text = text._text;
+            _fontFamily = text._fontFamily;
+            _fontSize = text._fontSize;
+            _isBold = text._isBold;
+            _isItalic = text._isItalic;
+            _letterSpacing = text._letterSpacing;
+            _rotationDegrees = text._rotationDegrees;
+            OnPropertyChanged(nameof(Text));
+            OnPropertyChanged(nameof(FontFamily));
+            OnPropertyChanged(nameof(FontSize));
+            OnPropertyChanged(nameof(IsBold));
+            OnPropertyChanged(nameof(IsItalic));
+            OnPropertyChanged(nameof(LetterSpacing));
+            OnPropertyChanged(nameof(RotationDegrees));
+            RebuildBaseContours();
+        }
+    }
+
     public override ToolpathShape Clone()
     {
         var copy = new TextShape(
             PositionX, PositionY, PositionZ,
             _text, _fontFamily, _fontSize, _isBold, _isItalic, _letterSpacing, _rotationDegrees)
         {
-            Name = $"{Name} Copy",
+            Name = Name,
             LayerId = LayerId,
             CutType = CutType
         };

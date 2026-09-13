@@ -5,6 +5,7 @@ using System.Windows.Input;
 using OpenTK.Mathematics;
 using OpenTK.Wpf;
 using AblationStudio.App.ViewModels;
+using AblationStudio.Core.History.Actions;
 using AblationStudio.Core.Models;
 using AblationStudio.Core.Shapes;
 using AblationStudio.Rendering;
@@ -360,6 +361,7 @@ public partial class OpenGLViewport : UserControl
                         ShapeDocument.SelectedShape = hitShape;
                         ShapeDocument.IsDragging = true;
                         _isDraggingShape = true;
+                        _dragSnapshotShape = hitShape.Clone();
                         Cursor = Cursors.SizeAll;
                         if (_renderer.Camera.IntersectRayPlaneZ(rayOrigin, rayDir, hitShape.PositionZ, out Vector3 shapeHit))
                         {
@@ -587,6 +589,18 @@ public partial class OpenGLViewport : UserControl
             if (_isRotatingShape)
             {
                 _isRotatingShape = false;
+                if (ShapeDocument?.SelectedShape is not null && _dragSnapshotShape is not null)
+                {
+                    var selShape = ShapeDocument.SelectedShape;
+                    var afterSnapshot = selShape.Clone();
+                    ShapeDocument.UndoManager.RecordAction(new ModifyShapeAction(
+                        selShape,
+                        _dragSnapshotShape,
+                        afterSnapshot,
+                        $"Rotate {selShape.Name}",
+                        document: ShapeDocument,
+                        wasSelected: true));
+                }
                 _dragSnapshotShape = null;
                 if (ShapeDocument is not null)
                 {
@@ -598,6 +612,18 @@ public partial class OpenGLViewport : UserControl
             if (_isResizingShape)
             {
                 _isResizingShape = false;
+                if (ShapeDocument?.SelectedShape is not null && _dragSnapshotShape is not null)
+                {
+                    var selShape = ShapeDocument.SelectedShape;
+                    var afterSnapshot = selShape.Clone();
+                    ShapeDocument.UndoManager.RecordAction(new ModifyShapeAction(
+                        selShape,
+                        _dragSnapshotShape,
+                        afterSnapshot,
+                        $"Scale {selShape.Name}",
+                        document: ShapeDocument,
+                        wasSelected: true));
+                }
                 _dragSnapshotShape = null;
                 if (ShapeDocument is not null)
                 {
@@ -623,7 +649,14 @@ public partial class OpenGLViewport : UserControl
 
                 if (isValid && ShapeDocument is not null)
                 {
-                    ShapeDocument.AddShape(_previewShape);
+                    ToolpathShape created = _previewShape;
+                    ShapeDocument.AddShape(created);
+                    ShapeDocument.UndoManager.RecordAction(new AddShapeAction(
+                        ShapeDocument,
+                        created,
+                        ShapeDocument.Shapes.Count - 1,
+                        $"Add {created.Name}",
+                        wasSelected: true));
                     CurrentTool = ShapeToolType.Select;
                     ToolSwitched?.Invoke(ShapeToolType.Select);
                 }
@@ -634,6 +667,23 @@ public partial class OpenGLViewport : UserControl
             if (_isDraggingShape)
             {
                 _isDraggingShape = false;
+                if (ShapeDocument?.SelectedShape is not null && _dragSnapshotShape is not null)
+                {
+                    var selShape = ShapeDocument.SelectedShape;
+                    if (MathF.Abs(selShape.PositionX - _dragSnapshotShape.PositionX) > 1e-4f ||
+                        MathF.Abs(selShape.PositionY - _dragSnapshotShape.PositionY) > 1e-4f ||
+                        MathF.Abs(selShape.PositionZ - _dragSnapshotShape.PositionZ) > 1e-4f)
+                    {
+                        var afterSnapshot = selShape.Clone();
+                        ShapeDocument.UndoManager.RecordAction(new ModifyShapeAction(
+                            selShape,
+                            _dragSnapshotShape,
+                            afterSnapshot,
+                            $"Move {selShape.Name}",
+                            document: ShapeDocument,
+                            wasSelected: true));
+                    }
+                }
                 _dragSnapshotShape = null;
                 if (ShapeDocument is not null)
                 {
