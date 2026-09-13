@@ -42,8 +42,35 @@ public sealed class ShapeDocument
 
     public bool IsDragging { get; set; }
 
+    private int _documentSuspendCount;
+    private bool _hasPendingDocumentChanged;
+
+    public void SuspendDocumentChanged()
+    {
+        _documentSuspendCount++;
+    }
+
+    public void ResumeDocumentChanged()
+    {
+        if (_documentSuspendCount > 0)
+        {
+            _documentSuspendCount--;
+            if (_documentSuspendCount == 0 && _hasPendingDocumentChanged)
+            {
+                _hasPendingDocumentChanged = false;
+                DocumentChanged?.Invoke();
+            }
+        }
+    }
+
     public void NotifyDocumentChanged()
     {
+        if (_documentSuspendCount > 0)
+        {
+            _hasPendingDocumentChanged = true;
+            return;
+        }
+
         DocumentChanged?.Invoke();
     }
 
@@ -328,7 +355,7 @@ public sealed class ShapeDocument
         return null;
     }
 
-    public Toolpath CompileToolpath(string name = "CustomShapes.h", bool includeHomeTransitions = false)
+    public Toolpath CompileToolpath(string name = "CustomShapes.h", bool includeHomeTransitions = false, bool? includeHatch = null)
     {
         var segments = new List<ToolpathSegment>();
         if (_shapes.Count == 0)
@@ -341,7 +368,8 @@ public sealed class ShapeDocument
 
         foreach (ToolpathShape shape in _shapes)
         {
-            foreach (ToolpathSegment seg in shape.GenerateSegments(currentPosition))
+            bool shapeIncludeHatch = includeHatch ?? (!IsDragging || !shape.IsSelected);
+            foreach (ToolpathSegment seg in shape.GenerateSegments(currentPosition, shapeIncludeHatch))
             {
                 segments.Add(seg);
                 currentPosition = seg.End;
@@ -386,7 +414,7 @@ public sealed class ShapeDocument
 
         int currentLayer = -1;
         SegmentType? activeType = null;
-        Toolpath toolpath = CompileToolpath(name, includeHomeTransitions: true);
+        Toolpath toolpath = CompileToolpath(name, includeHomeTransitions: true, includeHatch: true);
 
         for (int i = 0; i < toolpath.Segments.Count; i++)
         {
@@ -500,6 +528,6 @@ public sealed class ShapeDocument
             }
         }
 
-        DocumentChanged?.Invoke();
+        NotifyDocumentChanged();
     }
 }

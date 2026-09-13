@@ -89,50 +89,84 @@ public sealed class PolygonShape : ToolpathShape
 
     public override void Scale(float factor, float originX, float originY)
     {
-        PositionX = originX + (PositionX - originX) * factor;
-        PositionY = originY + (PositionY - originY) * factor;
-        Radius = MathF.Max(0.01f, Radius * factor);
-        InvalidateHatchCache();
-        OnShapeModified();
+        SuspendNotifications();
+        try
+        {
+            PositionX = originX + (PositionX - originX) * factor;
+            PositionY = originY + (PositionY - originY) * factor;
+            Radius = MathF.Max(0.01f, Radius * factor);
+            InvalidateHatchCache();
+            OnShapeModified();
+        }
+        finally
+        {
+            ResumeNotifications();
+        }
     }
 
     public override void Rotate(float deltaAngleDegrees, float originX, float originY)
     {
-        var (newX, newY) = RotatePoint(PositionX, PositionY, originX, originY, deltaAngleDegrees);
-        PositionX = newX;
-        PositionY = newY;
-        RotationDegrees = (RotationDegrees + deltaAngleDegrees % 360f + 360f) % 360f;
+        SuspendNotifications();
+        try
+        {
+            var (newX, newY) = RotatePoint(PositionX, PositionY, originX, originY, deltaAngleDegrees);
+            PositionX = newX;
+            PositionY = newY;
+            RotationDegrees = (RotationDegrees + deltaAngleDegrees % 360f + 360f) % 360f;
+            InvalidateHatchCache();
+            OnShapeModified();
+        }
+        finally
+        {
+            ResumeNotifications();
+        }
     }
 
     public override void CopyTransformFrom(ToolpathShape source)
     {
-        base.CopyTransformFrom(source);
-        if (source is PolygonShape poly)
+        SuspendNotifications();
+        try
         {
-            _radius = poly._radius;
-            _sides = poly._sides;
-            _rotationDegrees = poly._rotationDegrees;
-            OnPropertyChanged(nameof(Radius));
-            OnPropertyChanged(nameof(Sides));
-            OnPropertyChanged(nameof(RotationDegrees));
-            InvalidateHatchCache();
-            OnShapeModified();
+            base.CopyTransformFrom(source);
+            if (source is PolygonShape poly)
+            {
+                _radius = poly._radius;
+                _sides = poly._sides;
+                _rotationDegrees = poly._rotationDegrees;
+                OnPropertyChanged(nameof(Radius));
+                OnPropertyChanged(nameof(Sides));
+                OnPropertyChanged(nameof(RotationDegrees));
+                InvalidateHatchCache();
+                OnShapeModified();
+            }
+        }
+        finally
+        {
+            ResumeNotifications();
         }
     }
 
     public override void CopyAllFrom(ToolpathShape source)
     {
-        base.CopyAllFrom(source);
-        if (source is PolygonShape poly)
+        SuspendNotifications();
+        try
         {
-            _radius = poly._radius;
-            _sides = poly._sides;
-            _rotationDegrees = poly._rotationDegrees;
-            OnPropertyChanged(nameof(Radius));
-            OnPropertyChanged(nameof(Sides));
-            OnPropertyChanged(nameof(RotationDegrees));
-            InvalidateHatchCache();
-            OnShapeModified();
+            base.CopyAllFrom(source);
+            if (source is PolygonShape poly)
+            {
+                _radius = poly._radius;
+                _sides = poly._sides;
+                _rotationDegrees = poly._rotationDegrees;
+                OnPropertyChanged(nameof(Radius));
+                OnPropertyChanged(nameof(Sides));
+                OnPropertyChanged(nameof(RotationDegrees));
+                InvalidateHatchCache();
+                OnShapeModified();
+            }
+        }
+        finally
+        {
+            ResumeNotifications();
         }
     }
 

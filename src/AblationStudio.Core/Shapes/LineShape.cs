@@ -101,54 +101,87 @@ public sealed class LineShape : ToolpathShape
 
     public override void Scale(float factor, float originX, float originY)
     {
-        PositionX = originX + (PositionX - originX) * factor;
-        PositionY = originY + (PositionY - originY) * factor;
-        EndX = originX + (EndX - originX) * factor;
-        EndY = originY + (EndY - originY) * factor;
-        OnShapeModified();
+        SuspendNotifications();
+        try
+        {
+            PositionX = originX + (PositionX - originX) * factor;
+            PositionY = originY + (PositionY - originY) * factor;
+            EndX = originX + (EndX - originX) * factor;
+            EndY = originY + (EndY - originY) * factor;
+            OnShapeModified();
+        }
+        finally
+        {
+            ResumeNotifications();
+        }
     }
 
     public override void Rotate(float deltaAngleDegrees, float originX, float originY)
     {
-        var (newStartX, newStartY) = RotatePoint(PositionX, PositionY, originX, originY, deltaAngleDegrees);
-        var (newEndX, newEndY) = RotatePoint(EndX, EndY, originX, originY, deltaAngleDegrees);
-        PositionX = newStartX;
-        PositionY = newStartY;
-        EndX = newEndX;
-        EndY = newEndY;
+        SuspendNotifications();
+        try
+        {
+            var (newStartX, newStartY) = RotatePoint(PositionX, PositionY, originX, originY, deltaAngleDegrees);
+            var (newEndX, newEndY) = RotatePoint(EndX, EndY, originX, originY, deltaAngleDegrees);
+            PositionX = newStartX;
+            PositionY = newStartY;
+            EndX = newEndX;
+            EndY = newEndY;
+            OnShapeModified();
+        }
+        finally
+        {
+            ResumeNotifications();
+        }
     }
 
     public override void CopyTransformFrom(ToolpathShape source)
     {
-        base.CopyTransformFrom(source);
-        if (source is LineShape line)
+        SuspendNotifications();
+        try
         {
-            _endX = line._endX;
-            _endY = line._endY;
-            _endZ = line._endZ;
-            OnPropertyChanged(nameof(EndX));
-            OnPropertyChanged(nameof(EndY));
-            OnPropertyChanged(nameof(EndZ));
-            OnPropertyChanged(nameof(Length));
-            OnPropertyChanged(nameof(AngleDegrees));
-            OnShapeModified();
+            base.CopyTransformFrom(source);
+            if (source is LineShape line)
+            {
+                _endX = line._endX;
+                _endY = line._endY;
+                _endZ = line._endZ;
+                OnPropertyChanged(nameof(EndX));
+                OnPropertyChanged(nameof(EndY));
+                OnPropertyChanged(nameof(EndZ));
+                OnPropertyChanged(nameof(Length));
+                OnPropertyChanged(nameof(AngleDegrees));
+                OnShapeModified();
+            }
+        }
+        finally
+        {
+            ResumeNotifications();
         }
     }
 
     public override void CopyAllFrom(ToolpathShape source)
     {
-        base.CopyAllFrom(source);
-        if (source is LineShape line)
+        SuspendNotifications();
+        try
         {
-            _endX = line._endX;
-            _endY = line._endY;
-            _endZ = line._endZ;
-            OnPropertyChanged(nameof(EndX));
-            OnPropertyChanged(nameof(EndY));
-            OnPropertyChanged(nameof(EndZ));
-            OnPropertyChanged(nameof(Length));
-            OnPropertyChanged(nameof(AngleDegrees));
-            OnShapeModified();
+            base.CopyAllFrom(source);
+            if (source is LineShape line)
+            {
+                _endX = line._endX;
+                _endY = line._endY;
+                _endZ = line._endZ;
+                OnPropertyChanged(nameof(EndX));
+                OnPropertyChanged(nameof(EndY));
+                OnPropertyChanged(nameof(EndZ));
+                OnPropertyChanged(nameof(Length));
+                OnPropertyChanged(nameof(AngleDegrees));
+                OnShapeModified();
+            }
+        }
+        finally
+        {
+            ResumeNotifications();
         }
     }
 

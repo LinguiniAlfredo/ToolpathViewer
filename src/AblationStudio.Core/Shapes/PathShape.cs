@@ -85,9 +85,9 @@ public sealed class PathShape : ToolpathShape, IContourShape
         return allPoints;
     }
 
-    public override IEnumerable<ToolpathSegment> GenerateSegments(ToolpathPoint? currentPosition = null)
+    public override IEnumerable<ToolpathSegment> GenerateSegments(ToolpathPoint? currentPosition = null, bool includeHatch = true)
     {
-        bool hasHatch = IsClosed && Hatch.IsEnabled && Hatch.Pattern != HatchPatternType.None;
+        bool hasHatch = includeHatch && IsClosed && Hatch.IsEnabled && Hatch.Pattern != HatchPatternType.None;
         bool keepBoundary = !hasHatch || Hatch.KeepBoundary;
 
         ToolpathPoint? pos = currentPosition;
@@ -263,69 +263,101 @@ public sealed class PathShape : ToolpathShape, IContourShape
 
     public override void Scale(float factor, float originX, float originY)
     {
-        PositionX = originX + (PositionX - originX) * factor;
-        PositionY = originY + (PositionY - originY) * factor;
-
-        foreach (PathContour contour in _contours)
+        SuspendNotifications();
+        try
         {
-            contour.Scale(factor);
-        }
+            PositionX = originX + (PositionX - originX) * factor;
+            PositionY = originY + (PositionY - originY) * factor;
 
-        InvalidateHatchCache();
-        OnPropertyChanged(nameof(TotalPerimeterLength));
-        OnShapeModified();
+            foreach (PathContour contour in _contours)
+            {
+                contour.Scale(factor);
+            }
+
+            InvalidateHatchCache();
+            OnPropertyChanged(nameof(TotalPerimeterLength));
+            OnShapeModified();
+        }
+        finally
+        {
+            ResumeNotifications();
+        }
     }
 
     public override void Rotate(float deltaAngleDegrees, float originX, float originY)
     {
-        var (newX, newY) = RotatePoint(PositionX, PositionY, originX, originY, deltaAngleDegrees);
-        PositionX = newX;
-        PositionY = newY;
-
-        foreach (PathContour contour in _contours)
+        SuspendNotifications();
+        try
         {
-            contour.Rotate(deltaAngleDegrees);
-        }
+            var (newX, newY) = RotatePoint(PositionX, PositionY, originX, originY, deltaAngleDegrees);
+            PositionX = newX;
+            PositionY = newY;
 
-        InvalidateHatchCache();
-        OnShapeModified();
+            foreach (PathContour contour in _contours)
+            {
+                contour.Rotate(deltaAngleDegrees);
+            }
+
+            InvalidateHatchCache();
+            OnShapeModified();
+        }
+        finally
+        {
+            ResumeNotifications();
+        }
     }
 
     public override void CopyTransformFrom(ToolpathShape source)
     {
-        base.CopyTransformFrom(source);
-        if (source is PathShape path)
+        SuspendNotifications();
+        try
         {
-            _contours.Clear();
-            foreach (PathContour c in path._contours)
+            base.CopyTransformFrom(source);
+            if (source is PathShape path)
             {
-                _contours.Add(c.Clone());
+                _contours.Clear();
+                foreach (PathContour c in path._contours)
+                {
+                    _contours.Add(c.Clone());
+                }
+                InvalidateHatchCache();
+                OnPropertyChanged(nameof(ContoursCount));
+                OnPropertyChanged(nameof(TotalPointsCount));
+                OnPropertyChanged(nameof(TotalPerimeterLength));
+                OnPropertyChanged(nameof(IsClosed));
+                OnShapeModified();
             }
-            InvalidateHatchCache();
-            OnPropertyChanged(nameof(ContoursCount));
-            OnPropertyChanged(nameof(TotalPointsCount));
-            OnPropertyChanged(nameof(TotalPerimeterLength));
-            OnPropertyChanged(nameof(IsClosed));
-            OnShapeModified();
+        }
+        finally
+        {
+            ResumeNotifications();
         }
     }
 
     public override void CopyAllFrom(ToolpathShape source)
     {
-        base.CopyAllFrom(source);
-        if (source is PathShape path)
+        SuspendNotifications();
+        try
         {
-            _contours.Clear();
-            foreach (PathContour c in path._contours)
+            base.CopyAllFrom(source);
+            if (source is PathShape path)
             {
-                _contours.Add(c.Clone());
+                _contours.Clear();
+                foreach (PathContour c in path._contours)
+                {
+                    _contours.Add(c.Clone());
+                }
+                InvalidateHatchCache();
+                OnPropertyChanged(nameof(ContoursCount));
+                OnPropertyChanged(nameof(TotalPointsCount));
+                OnPropertyChanged(nameof(TotalPerimeterLength));
+                OnPropertyChanged(nameof(IsClosed));
+                OnShapeModified();
             }
-            InvalidateHatchCache();
-            OnPropertyChanged(nameof(ContoursCount));
-            OnPropertyChanged(nameof(TotalPointsCount));
-            OnPropertyChanged(nameof(TotalPerimeterLength));
-            OnPropertyChanged(nameof(IsClosed));
-            OnShapeModified();
+        }
+        finally
+        {
+            ResumeNotifications();
         }
     }
 

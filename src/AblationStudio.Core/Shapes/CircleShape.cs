@@ -83,47 +83,81 @@ public sealed class CircleShape : ToolpathShape
 
     public override void Scale(float factor, float originX, float originY)
     {
-        PositionX = originX + (PositionX - originX) * factor;
-        PositionY = originY + (PositionY - originY) * factor;
-        Radius = MathF.Max(0.01f, Radius * factor);
-        InvalidateHatchCache();
-        OnShapeModified();
+        SuspendNotifications();
+        try
+        {
+            PositionX = originX + (PositionX - originX) * factor;
+            PositionY = originY + (PositionY - originY) * factor;
+            Radius = MathF.Max(0.01f, Radius * factor);
+            InvalidateHatchCache();
+            OnShapeModified();
+        }
+        finally
+        {
+            ResumeNotifications();
+        }
     }
 
     public override void Rotate(float deltaAngleDegrees, float originX, float originY)
     {
-        var (newX, newY) = RotatePoint(PositionX, PositionY, originX, originY, deltaAngleDegrees);
-        PositionX = newX;
-        PositionY = newY;
+        SuspendNotifications();
+        try
+        {
+            var (newX, newY) = RotatePoint(PositionX, PositionY, originX, originY, deltaAngleDegrees);
+            PositionX = newX;
+            PositionY = newY;
+            InvalidateHatchCache();
+            OnShapeModified();
+        }
+        finally
+        {
+            ResumeNotifications();
+        }
     }
 
     public override void CopyTransformFrom(ToolpathShape source)
     {
-        base.CopyTransformFrom(source);
-        if (source is CircleShape circle)
+        SuspendNotifications();
+        try
         {
-            _radius = circle._radius;
-            _segmentsCount = circle._segmentsCount;
-            OnPropertyChanged(nameof(Radius));
-            OnPropertyChanged(nameof(Diameter));
-            OnPropertyChanged(nameof(SegmentsCount));
-            InvalidateHatchCache();
-            OnShapeModified();
+            base.CopyTransformFrom(source);
+            if (source is CircleShape circle)
+            {
+                _radius = circle._radius;
+                _segmentsCount = circle._segmentsCount;
+                OnPropertyChanged(nameof(Radius));
+                OnPropertyChanged(nameof(Diameter));
+                OnPropertyChanged(nameof(SegmentsCount));
+                InvalidateHatchCache();
+                OnShapeModified();
+            }
+        }
+        finally
+        {
+            ResumeNotifications();
         }
     }
 
     public override void CopyAllFrom(ToolpathShape source)
     {
-        base.CopyAllFrom(source);
-        if (source is CircleShape circle)
+        SuspendNotifications();
+        try
         {
-            _radius = circle._radius;
-            _segmentsCount = circle._segmentsCount;
-            OnPropertyChanged(nameof(Radius));
-            OnPropertyChanged(nameof(Diameter));
-            OnPropertyChanged(nameof(SegmentsCount));
-            InvalidateHatchCache();
-            OnShapeModified();
+            base.CopyAllFrom(source);
+            if (source is CircleShape circle)
+            {
+                _radius = circle._radius;
+                _segmentsCount = circle._segmentsCount;
+                OnPropertyChanged(nameof(Radius));
+                OnPropertyChanged(nameof(Diameter));
+                OnPropertyChanged(nameof(SegmentsCount));
+                InvalidateHatchCache();
+                OnShapeModified();
+            }
+        }
+        finally
+        {
+            ResumeNotifications();
         }
     }
 

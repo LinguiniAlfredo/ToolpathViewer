@@ -98,49 +98,85 @@ public sealed class RectangleShape : ToolpathShape
 
     public override void Scale(float factor, float originX, float originY)
     {
-        PositionX = originX + (PositionX - originX) * factor;
-        PositionY = originY + (PositionY - originY) * factor;
-        Width = MathF.Max(0.01f, Width * factor);
-        Height = MathF.Max(0.01f, Height * factor);
-        InvalidateHatchCache();
-        OnShapeModified();
+        SuspendNotifications();
+        try
+        {
+            PositionX = originX + (PositionX - originX) * factor;
+            PositionY = originY + (PositionY - originY) * factor;
+            Width = MathF.Max(0.01f, Width * factor);
+            Height = MathF.Max(0.01f, Height * factor);
+            InvalidateHatchCache();
+            OnShapeModified();
+        }
+        finally
+        {
+            ResumeNotifications();
+        }
     }
 
     public override void Rotate(float deltaAngleDegrees, float originX, float originY)
     {
-        var (newX, newY) = RotatePoint(PositionX, PositionY, originX, originY, deltaAngleDegrees);
-        PositionX = newX;
-        PositionY = newY;
-        RotationDegrees = (RotationDegrees + deltaAngleDegrees % 360f + 360f) % 360f;
+        SuspendNotifications();
+        try
+        {
+            var (newX, newY) = RotatePoint(PositionX, PositionY, originX, originY, deltaAngleDegrees);
+            PositionX = newX;
+            PositionY = newY;
+            RotationDegrees = (RotationDegrees + deltaAngleDegrees % 360f + 360f) % 360f;
+            InvalidateHatchCache();
+            OnShapeModified();
+        }
+        finally
+        {
+            ResumeNotifications();
+        }
     }
 
     public override void CopyTransformFrom(ToolpathShape source)
     {
-        base.CopyTransformFrom(source);
-        if (source is RectangleShape rect)
+        SuspendNotifications();
+        try
         {
-            _width = rect._width;
-            _height = rect._height;
-            _rotationDegrees = rect._rotationDegrees;
-            OnPropertyChanged(nameof(Width));
-            OnPropertyChanged(nameof(Height));
-            OnPropertyChanged(nameof(RotationDegrees));
-            OnShapeModified();
+            base.CopyTransformFrom(source);
+            if (source is RectangleShape rect)
+            {
+                _width = rect._width;
+                _height = rect._height;
+                _rotationDegrees = rect._rotationDegrees;
+                OnPropertyChanged(nameof(Width));
+                OnPropertyChanged(nameof(Height));
+                OnPropertyChanged(nameof(RotationDegrees));
+                InvalidateHatchCache();
+                OnShapeModified();
+            }
+        }
+        finally
+        {
+            ResumeNotifications();
         }
     }
 
     public override void CopyAllFrom(ToolpathShape source)
     {
-        base.CopyAllFrom(source);
-        if (source is RectangleShape rect)
+        SuspendNotifications();
+        try
         {
-            _width = rect._width;
-            _height = rect._height;
-            _rotationDegrees = rect._rotationDegrees;
-            OnPropertyChanged(nameof(Width));
-            OnPropertyChanged(nameof(Height));
-            OnPropertyChanged(nameof(RotationDegrees));
-            OnShapeModified();
+            base.CopyAllFrom(source);
+            if (source is RectangleShape rect)
+            {
+                _width = rect._width;
+                _height = rect._height;
+                _rotationDegrees = rect._rotationDegrees;
+                OnPropertyChanged(nameof(Width));
+                OnPropertyChanged(nameof(Height));
+                OnPropertyChanged(nameof(RotationDegrees));
+                InvalidateHatchCache();
+                OnShapeModified();
+            }
+        }
+        finally
+        {
+            ResumeNotifications();
         }
     }
 

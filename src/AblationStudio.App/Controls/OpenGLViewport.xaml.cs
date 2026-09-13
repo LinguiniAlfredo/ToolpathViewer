@@ -561,10 +561,18 @@ public partial class OpenGLViewport : UserControl
                     deltaAngleDeg = MathF.Round(deltaAngleDeg / 15f) * 15f;
                 }
 
-                foreach (var (shape, snapshot) in _dragSnapshotMap)
+                ShapeDocument.SuspendDocumentChanged();
+                try
                 {
-                    shape.CopyTransformFrom(snapshot);
-                    shape.Rotate(deltaAngleDeg, _rotateCenter.X, _rotateCenter.Y);
+                    foreach (var (shape, snapshot) in _dragSnapshotMap)
+                    {
+                        shape.CopyTransformFrom(snapshot);
+                        shape.Rotate(deltaAngleDeg, _rotateCenter.X, _rotateCenter.Y);
+                    }
+                }
+                finally
+                {
+                    ShapeDocument.ResumeDocumentChanged();
                 }
                 GlSurface.InvalidateVisual();
             }
@@ -595,10 +603,18 @@ public partial class OpenGLViewport : UserControl
                     scaleFactor = MathF.Max(0.05f, currentDistance / _resizeInitialDistance);
                 }
 
-                foreach (var (shape, snapshot) in _dragSnapshotMap)
+                ShapeDocument.SuspendDocumentChanged();
+                try
                 {
-                    shape.CopyTransformFrom(snapshot);
-                    shape.Scale(scaleFactor, _resizeAnchor.X, _resizeAnchor.Y);
+                    foreach (var (shape, snapshot) in _dragSnapshotMap)
+                    {
+                        shape.CopyTransformFrom(snapshot);
+                        shape.Scale(scaleFactor, _resizeAnchor.X, _resizeAnchor.Y);
+                    }
+                }
+                finally
+                {
+                    ShapeDocument.ResumeDocumentChanged();
                 }
                 GlSurface.InvalidateVisual();
             }
@@ -621,9 +637,17 @@ public partial class OpenGLViewport : UserControl
 
                 if (MathF.Abs(dx) > 1e-4f || MathF.Abs(dy) > 1e-4f)
                 {
-                    foreach (ToolpathShape shape in ShapeDocument.SelectedShapes)
+                    ShapeDocument.SuspendDocumentChanged();
+                    try
                     {
-                        shape.Translate(dx, dy, 0f);
+                        foreach (ToolpathShape shape in ShapeDocument.SelectedShapes)
+                        {
+                            shape.Translate(dx, dy, 0f);
+                        }
+                    }
+                    finally
+                    {
+                        ShapeDocument.ResumeDocumentChanged();
                     }
                     _lastShapeHitPoint = hitPoint;
                     GlSurface.InvalidateVisual();

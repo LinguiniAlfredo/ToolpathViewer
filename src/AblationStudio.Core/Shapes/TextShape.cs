@@ -234,9 +234,9 @@ public sealed class TextShape : ToolpathShape, IContourShape
         return allPoints;
     }
 
-    public override IEnumerable<ToolpathSegment> GenerateSegments(ToolpathPoint? currentPosition = null)
+    public override IEnumerable<ToolpathSegment> GenerateSegments(ToolpathPoint? currentPosition = null, bool includeHatch = true)
     {
-        bool hasHatch = IsClosed && Hatch.IsEnabled && Hatch.Pattern != HatchPatternType.None;
+        bool hasHatch = includeHatch && IsClosed && Hatch.IsEnabled && Hatch.Pattern != HatchPatternType.None;
         bool keepBoundary = !hasHatch || Hatch.KeepBoundary;
 
         ToolpathPoint? pos = currentPosition;
@@ -412,62 +412,98 @@ public sealed class TextShape : ToolpathShape, IContourShape
 
     public override void Scale(float factor, float originX, float originY)
     {
-        PositionX = originX + (PositionX - originX) * factor;
-        PositionY = originY + (PositionY - originY) * factor;
-        FontSize = MathF.Max(0.1f, FontSize * factor);
+        SuspendNotifications();
+        try
+        {
+            PositionX = originX + (PositionX - originX) * factor;
+            PositionY = originY + (PositionY - originY) * factor;
+            FontSize = MathF.Max(0.1f, FontSize * factor);
+            OnShapeModified();
+        }
+        finally
+        {
+            ResumeNotifications();
+        }
     }
 
     public override void Rotate(float deltaAngleDegrees, float originX, float originY)
     {
-        var (newX, newY) = RotatePoint(PositionX, PositionY, originX, originY, deltaAngleDegrees);
-        PositionX = newX;
-        PositionY = newY;
-        RotationDegrees = (RotationDegrees + deltaAngleDegrees % 360f + 360f) % 360f;
+        SuspendNotifications();
+        try
+        {
+            var (newX, newY) = RotatePoint(PositionX, PositionY, originX, originY, deltaAngleDegrees);
+            PositionX = newX;
+            PositionY = newY;
+            RotationDegrees = (RotationDegrees + deltaAngleDegrees % 360f + 360f) % 360f;
+            OnShapeModified();
+        }
+        finally
+        {
+            ResumeNotifications();
+        }
     }
 
     public override void CopyTransformFrom(ToolpathShape source)
     {
-        base.CopyTransformFrom(source);
-        if (source is TextShape text)
+        SuspendNotifications();
+        try
         {
-            _text = text._text;
-            _fontFamily = text._fontFamily;
-            _fontSize = text._fontSize;
-            _isBold = text._isBold;
-            _isItalic = text._isItalic;
-            _letterSpacing = text._letterSpacing;
-            _rotationDegrees = text._rotationDegrees;
-            OnPropertyChanged(nameof(Text));
-            OnPropertyChanged(nameof(FontFamily));
-            OnPropertyChanged(nameof(FontSize));
-            OnPropertyChanged(nameof(IsBold));
-            OnPropertyChanged(nameof(IsItalic));
-            OnPropertyChanged(nameof(LetterSpacing));
-            OnPropertyChanged(nameof(RotationDegrees));
-            RebuildBaseContours();
+            base.CopyTransformFrom(source);
+            if (source is TextShape text)
+            {
+                _text = text._text;
+                _fontFamily = text._fontFamily;
+                _fontSize = text._fontSize;
+                _isBold = text._isBold;
+                _isItalic = text._isItalic;
+                _letterSpacing = text._letterSpacing;
+                _rotationDegrees = text._rotationDegrees;
+                OnPropertyChanged(nameof(Text));
+                OnPropertyChanged(nameof(FontFamily));
+                OnPropertyChanged(nameof(FontSize));
+                OnPropertyChanged(nameof(IsBold));
+                OnPropertyChanged(nameof(IsItalic));
+                OnPropertyChanged(nameof(LetterSpacing));
+                OnPropertyChanged(nameof(RotationDegrees));
+                RebuildBaseContours();
+                OnShapeModified();
+            }
+        }
+        finally
+        {
+            ResumeNotifications();
         }
     }
 
     public override void CopyAllFrom(ToolpathShape source)
     {
-        base.CopyAllFrom(source);
-        if (source is TextShape text)
+        SuspendNotifications();
+        try
         {
-            _text = text._text;
-            _fontFamily = text._fontFamily;
-            _fontSize = text._fontSize;
-            _isBold = text._isBold;
-            _isItalic = text._isItalic;
-            _letterSpacing = text._letterSpacing;
-            _rotationDegrees = text._rotationDegrees;
-            OnPropertyChanged(nameof(Text));
-            OnPropertyChanged(nameof(FontFamily));
-            OnPropertyChanged(nameof(FontSize));
-            OnPropertyChanged(nameof(IsBold));
-            OnPropertyChanged(nameof(IsItalic));
-            OnPropertyChanged(nameof(LetterSpacing));
-            OnPropertyChanged(nameof(RotationDegrees));
-            RebuildBaseContours();
+            base.CopyAllFrom(source);
+            if (source is TextShape text)
+            {
+                _text = text._text;
+                _fontFamily = text._fontFamily;
+                _fontSize = text._fontSize;
+                _isBold = text._isBold;
+                _isItalic = text._isItalic;
+                _letterSpacing = text._letterSpacing;
+                _rotationDegrees = text._rotationDegrees;
+                OnPropertyChanged(nameof(Text));
+                OnPropertyChanged(nameof(FontFamily));
+                OnPropertyChanged(nameof(FontSize));
+                OnPropertyChanged(nameof(IsBold));
+                OnPropertyChanged(nameof(IsItalic));
+                OnPropertyChanged(nameof(LetterSpacing));
+                OnPropertyChanged(nameof(RotationDegrees));
+                RebuildBaseContours();
+                OnShapeModified();
+            }
+        }
+        finally
+        {
+            ResumeNotifications();
         }
     }
 

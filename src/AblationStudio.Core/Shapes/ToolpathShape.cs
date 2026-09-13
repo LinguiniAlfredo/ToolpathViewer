@@ -21,6 +21,27 @@ public abstract class ToolpathShape : INotifyPropertyChanged
 
     protected List<ToolpathSegment>? CachedHatchSegments;
 
+    private int _suspendCount;
+    private bool _hasPendingModification;
+
+    public void SuspendNotifications()
+    {
+        _suspendCount++;
+    }
+
+    public void ResumeNotifications()
+    {
+        if (_suspendCount > 0)
+        {
+            _suspendCount--;
+            if (_suspendCount == 0 && _hasPendingModification)
+            {
+                _hasPendingModification = false;
+                OnShapeModified();
+            }
+        }
+    }
+
     public string Id { get; } = Guid.NewGuid().ToString("N");
     public HatchSettings Hatch { get; } = new();
 
@@ -127,7 +148,7 @@ public abstract class ToolpathShape : INotifyPropertyChanged
 
     public abstract IReadOnlyList<ToolpathPoint> GetPathPoints();
 
-    public virtual IEnumerable<ToolpathSegment> GenerateSegments(ToolpathPoint? currentPosition = null)
+    public virtual IEnumerable<ToolpathSegment> GenerateSegments(ToolpathPoint? currentPosition = null, bool includeHatch = true)
     {
         IReadOnlyList<ToolpathPoint> points = GetPathPoints();
         if (points.Count < 2)
@@ -135,7 +156,7 @@ public abstract class ToolpathShape : INotifyPropertyChanged
             yield break;
         }
 
-        bool hasHatch = IsClosed && Hatch.IsEnabled && Hatch.Pattern != HatchPatternType.None;
+        bool hasHatch = includeHatch && IsClosed && Hatch.IsEnabled && Hatch.Pattern != HatchPatternType.None;
         bool keepBoundary = !hasHatch || Hatch.KeepBoundary;
 
         ToolpathPoint? pos = currentPosition;
@@ -315,39 +336,55 @@ public abstract class ToolpathShape : INotifyPropertyChanged
     public virtual void CopyTransformFrom(ToolpathShape source)
     {
         ArgumentNullException.ThrowIfNull(source);
-        _positionX = source._positionX;
-        _positionY = source._positionY;
-        _positionZ = source._positionZ;
-        _layerId = source._layerId;
-        _cutType = source._cutType;
-        InvalidateHatchCache();
-        OnPropertyChanged(nameof(PositionX));
-        OnPropertyChanged(nameof(PositionY));
-        OnPropertyChanged(nameof(PositionZ));
-        OnPropertyChanged(nameof(LayerId));
-        OnPropertyChanged(nameof(CutType));
-        OnShapeModified();
+        SuspendNotifications();
+        try
+        {
+            _positionX = source._positionX;
+            _positionY = source._positionY;
+            _positionZ = source._positionZ;
+            _layerId = source._layerId;
+            _cutType = source._cutType;
+            InvalidateHatchCache();
+            OnPropertyChanged(nameof(PositionX));
+            OnPropertyChanged(nameof(PositionY));
+            OnPropertyChanged(nameof(PositionZ));
+            OnPropertyChanged(nameof(LayerId));
+            OnPropertyChanged(nameof(CutType));
+            OnShapeModified();
+        }
+        finally
+        {
+            ResumeNotifications();
+        }
     }
 
     public virtual void CopyAllFrom(ToolpathShape source)
     {
         ArgumentNullException.ThrowIfNull(source);
-        _name = source._name;
-        _positionX = source._positionX;
-        _positionY = source._positionY;
-        _positionZ = source._positionZ;
-        _layerId = source._layerId;
-        _cutType = source._cutType;
-        Hatch.CopyFrom(source.Hatch);
+        SuspendNotifications();
+        try
+        {
+            _name = source._name;
+            _positionX = source._positionX;
+            _positionY = source._positionY;
+            _positionZ = source._positionZ;
+            _layerId = source._layerId;
+            _cutType = source._cutType;
+            Hatch.CopyFrom(source.Hatch);
 
-        InvalidateHatchCache();
-        OnPropertyChanged(nameof(Name));
-        OnPropertyChanged(nameof(PositionX));
-        OnPropertyChanged(nameof(PositionY));
-        OnPropertyChanged(nameof(PositionZ));
-        OnPropertyChanged(nameof(LayerId));
-        OnPropertyChanged(nameof(CutType));
-        OnShapeModified();
+            InvalidateHatchCache();
+            OnPropertyChanged(nameof(Name));
+            OnPropertyChanged(nameof(PositionX));
+            OnPropertyChanged(nameof(PositionY));
+            OnPropertyChanged(nameof(PositionZ));
+            OnPropertyChanged(nameof(LayerId));
+            OnPropertyChanged(nameof(CutType));
+            OnShapeModified();
+        }
+        finally
+        {
+            ResumeNotifications();
+        }
     }
 
     public static (float X, float Y) RotatePoint(float x, float y, float originX, float originY, float deltaAngleDegrees)
@@ -369,6 +406,12 @@ public abstract class ToolpathShape : INotifyPropertyChanged
 
     protected void OnShapeModified()
     {
+        if (_suspendCount > 0)
+        {
+            _hasPendingModification = true;
+            return;
+        }
+
         ShapeChanged?.Invoke(this);
     }
 

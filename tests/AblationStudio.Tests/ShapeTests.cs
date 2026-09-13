@@ -803,7 +803,170 @@ public sealed class ShapeTests
         Assert.Equal(30f, c2.PositionX, precision: 2);
         Assert.Equal(2, doc.SelectedShapes.Count);
     }
+
+    [Fact]
+    public void ToolpathShape_SuspendNotifications_SuppressesShapeChangedUntilResumed()
+    {
+        var rect = new RectangleShape(0f, 0f, 0f, 10f, 10f);
+        int changedCount = 0;
+        rect.ShapeChanged += _ => changedCount++;
+
+        rect.SuspendNotifications();
+        rect.PositionX = 5f;
+        rect.PositionY = 5f;
+        rect.Width = 20f;
+        rect.Height = 20f;
+        Assert.Equal(0, changedCount);
+
+        rect.ResumeNotifications();
+        Assert.Equal(1, changedCount);
+    }
+
+    [Fact]
+    public void ToolpathShape_ScaleAndRotate_EmitSingleNotification()
+    {
+        var rect = new RectangleShape(0f, 0f, 0f, 10f, 10f);
+        int changedCount = 0;
+        rect.ShapeChanged += _ => changedCount++;
+
+        rect.Rotate(45f, 0f, 0f);
+        Assert.Equal(1, changedCount);
+
+        changedCount = 0;
+        rect.Scale(2f, 0f, 0f);
+        Assert.Equal(1, changedCount);
+    }
+
+    [Fact]
+    public void ShapeDocument_SuspendDocumentChanged_BatchesMultipleShapeChanges()
+    {
+        var doc = new ShapeDocument();
+        var s1 = new RectangleShape(0f, 0f, 0f, 10f, 10f);
+        var s2 = new CircleShape(20f, 20f, 0f, 5f);
+        doc.AddShape(s1);
+        doc.AddShape(s2);
+
+        int docChangedCount = 0;
+        doc.DocumentChanged += () => docChangedCount++;
+
+        doc.SuspendDocumentChanged();
+        s1.Rotate(15f, 0f, 0f);
+        s2.Rotate(15f, 0f, 0f);
+        Assert.Equal(0, docChangedCount);
+
+        doc.ResumeDocumentChanged();
+        Assert.Equal(1, docChangedCount);
+    }
+
+    [Fact]
+    public void ShapeDocument_CompileToolpath_SkipsHatchDuringDrag()
+    {
+        var doc = new ShapeDocument();
+        var rect = new RectangleShape(0f, 0f, 0f, 10f, 10f);
+        rect.Hatch.IsEnabled = true;
+        rect.Hatch.Pattern = HatchPatternType.ZigZag;
+        rect.Hatch.Stepover = 1.0f;
+        rect.Hatch.KeepBoundary = true;
+        doc.AddShape(rect);
+        doc.SelectShape(rect);
+
+        // When not dragging, hatch is included
+        doc.IsDragging = false;
+        Toolpath normalToolpath = doc.CompileToolpath("Normal");
+        Assert.Contains(normalToolpath.Segments, s => s.Type == SegmentType.Hatch);
+
+        // When dragging, selected shape hatch is skipped
+        doc.IsDragging = true;
+        Toolpath dragToolpath = doc.CompileToolpath("Drag");
+        Assert.DoesNotContain(dragToolpath.Segments, s => s.Type == SegmentType.Hatch);
+        // Boundary is still present
+        Assert.Contains(dragToolpath.Segments, s => s.Type == SegmentType.Cut);
+    }
+
+    [Fact]
+    public void ShapeDocument_CompileToolpath_UnselectedShapesKeepHatchDuringDrag()
+    {
+        var doc = new ShapeDocument();
+
+        // Shape 1: unselected
+        var unselectedShape = new RectangleShape(0f, 0f, 0f, 10f, 10f);
+        unselectedShape.Hatch.IsEnabled = true;
+        unselectedShape.Hatch.Pattern = HatchPatternType.ZigZag;
+        unselectedShape.Hatch.Stepover = 1.0f;
+        doc.AddShape(unselectedShape);
+
+        // Shape 2: selected (being transformed)
+        var selectedShape = new CircleShape(30f, 30f, 0f, 5f);
+        selectedShape.Hatch.IsEnabled = true;
+        selectedShape.Hatch.Pattern = HatchPatternType.Spiral;
+        selectedShape.Hatch.Stepover = 1.0f;
+        doc.AddShape(selectedShape);
+        doc.SelectShape(selectedShape);
+
+        doc.IsDragging = true;
+        Toolpath dragToolpath = doc.CompileToolpath("Drag");
+
+        // The toolpath should still contain hatch segments from the unselected shape!
+        Assert.Contains(dragToolpath.Segments, s => s.Type == SegmentType.Hatch);
+
+        // But the selected shape (circle) should NOT have its hatch segments
+        // Circle hatch segments would be around (30, 30); unselected rect is around (0, 0)
+        var hatches = dragToolpath.Segments.Where(s => s.Type == SegmentType.Hatch).ToList();
+        Assert.All(hatches, s =>
+        {
+            Assert.True(s.Start.X <= 15f && s.Start.Y <= 15f, "Hatch segment belonged to selected shape instead of unselected shape");
+        });
+    }
+
+    [Fact]
+    public void ShapeDocument_CompileToolpath_ExplicitIncludeHatchOverridesDragState()
+    {
+        var doc = new ShapeDocument();
+        var rect = new RectangleShape(0f, 0f, 0f, 10f, 10f);
+        rect.Hatch.IsEnabled = true;
+        rect.Hatch.Pattern = HatchPatternType.ZigZag;
+        rect.Hatch.Stepover = 1.0f;
+        rect.Hatch.KeepBoundary = true;
+        doc.AddShape(rect);
+        doc.SelectShape(rect);
+
+        // IsDragging is true, but explicit includeHatch: true forces hatch generation
+        doc.IsDragging = true;
+        Toolpath forcedHatchToolpath = doc.CompileToolpath("Forced", includeHatch: true);
+        Assert.Contains(forcedHatchToolpath.Segments, s => s.Type == SegmentType.Hatch);
+
+        // IsDragging is false, but explicit includeHatch: false suppresses hatch generation
+        doc.IsDragging = false;
+        Toolpath suppressedHatchToolpath = doc.CompileToolpath("Suppressed", includeHatch: false);
+        Assert.DoesNotContain(suppressedHatchToolpath.Segments, s => s.Type == SegmentType.Hatch);
+    }
+
+    [Fact]
+    public void ShapeDocument_CompileToolpath_KeepBoundaryFalse_ShowsOutlineDuringDrag()
+    {
+        var doc = new ShapeDocument();
+        var rect = new RectangleShape(0f, 0f, 0f, 10f, 10f);
+        rect.Hatch.IsEnabled = true;
+        rect.Hatch.Pattern = HatchPatternType.ZigZag;
+        rect.Hatch.Stepover = 1.0f;
+        rect.Hatch.KeepBoundary = false; // Boundary normally hidden
+        doc.AddShape(rect);
+        doc.SelectShape(rect);
+
+        // In normal mode with KeepBoundary=false, only hatch is emitted
+        doc.IsDragging = false;
+        Toolpath normalToolpath = doc.CompileToolpath("Normal");
+        Assert.Contains(normalToolpath.Segments, s => s.Type == SegmentType.Hatch);
+        Assert.DoesNotContain(normalToolpath.Segments, s => s.Type == SegmentType.Cut);
+
+        // During dragging, even with KeepBoundary=false, outline is shown so user can see what they are transforming
+        doc.IsDragging = true;
+        Toolpath dragToolpath = doc.CompileToolpath("Drag");
+        Assert.DoesNotContain(dragToolpath.Segments, s => s.Type == SegmentType.Hatch);
+        Assert.Contains(dragToolpath.Segments, s => s.Type == SegmentType.Cut);
+    }
 }
+
 
 
 
