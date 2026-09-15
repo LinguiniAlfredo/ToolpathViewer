@@ -11,6 +11,7 @@ namespace AblationStudio.Core.Projects;
 [JsonDerivedType(typeof(LineShapeDto), "line")]
 [JsonDerivedType(typeof(PathShapeDto), "path")]
 [JsonDerivedType(typeof(TextShapeDto), "text")]
+[JsonDerivedType(typeof(ImageShapeDto), "image")]
 public abstract class ShapeDto
 {
     public string Id { get; set; } = string.Empty;
@@ -70,6 +71,25 @@ public abstract class ShapeDto
                 IsItalic = text.IsItalic,
                 LetterSpacing = text.LetterSpacing,
                 RotationDegrees = text.RotationDegrees
+            },
+            ImageShape img => new ImageShapeDto
+            {
+                PixelDataBase64 = Convert.ToBase64String(img.PixelData),
+                PixelWidth = img.PixelWidth,
+                PixelHeight = img.PixelHeight,
+                RawImageData = img.RawImageData is not null ? Convert.ToBase64String(img.RawImageData) : null,
+                SourceFileName = img.SourceFileName,
+                Width = img.Width,
+                Height = img.Height,
+                RotationDegrees = img.RotationDegrees,
+                LockAspectRatio = img.LockAspectRatio,
+                RasterMode = img.RasterMode,
+                Stepover = img.Stepover,
+                BrightnessThreshold = img.BrightnessThreshold,
+                InvertImage = img.InvertImage,
+                BidirectionalScan = img.BidirectionalScan,
+                OverlayOpacity = img.OverlayOpacity,
+                ShowOverlay = img.ShowOverlay
             },
             _ => throw new NotSupportedException($"Shape type '{shape.GetType().Name}' is not supported for serialization.")
         };
@@ -183,6 +203,53 @@ public sealed class TextShapeDto : ShapeDto
             Text, FontFamily, FontSize, IsBold, IsItalic, LetterSpacing, RotationDegrees);
         PopulateCommonProperties(textShape);
         return textShape;
+    }
+}
+
+public sealed class ImageShapeDto : ShapeDto
+{
+    public string PixelDataBase64 { get; set; } = string.Empty;
+    public int PixelWidth { get; set; }
+    public int PixelHeight { get; set; }
+    public string? RawImageData { get; set; }
+    public string? SourceFileName { get; set; }
+    public float Width { get; set; } = 20.0f;
+    public float Height { get; set; } = 20.0f;
+    public float RotationDegrees { get; set; }
+    public bool LockAspectRatio { get; set; } = true;
+    public ImageRasterMode RasterMode { get; set; } = ImageRasterMode.GrayscaleDensity;
+    public float Stepover { get; set; } = 0.2f;
+    public float BrightnessThreshold { get; set; } = 0.5f;
+    public bool InvertImage { get; set; }
+    public bool BidirectionalScan { get; set; } = true;
+    public float OverlayOpacity { get; set; } = 0.4f;
+    public bool ShowOverlay { get; set; } = true;
+
+    public override ToolpathShape ToShape()
+    {
+        byte[] pixelData = !string.IsNullOrEmpty(PixelDataBase64) ? Convert.FromBase64String(PixelDataBase64) : [];
+        byte[]? rawImage = !string.IsNullOrEmpty(RawImageData) ? Convert.FromBase64String(RawImageData) : null;
+
+        var img = new ImageShape(
+            PositionX, PositionY, PositionZ,
+            Width, Height,
+            pixelData,
+            PixelWidth, PixelHeight,
+            rawImage,
+            SourceFileName,
+            RotationDegrees)
+        {
+            LockAspectRatio = LockAspectRatio,
+            RasterMode = RasterMode,
+            Stepover = Stepover,
+            BrightnessThreshold = BrightnessThreshold,
+            InvertImage = InvertImage,
+            BidirectionalScan = BidirectionalScan,
+            OverlayOpacity = OverlayOpacity,
+            ShowOverlay = ShowOverlay
+        };
+        PopulateCommonProperties(img);
+        return img;
     }
 }
 

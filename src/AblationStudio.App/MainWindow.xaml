@@ -106,6 +106,12 @@
                             <ui:SymbolIcon Symbol="ArrowImport24" />
                         </MenuItem.Icon>
                     </MenuItem>
+                    <MenuItem Header="_Import Image File..."
+                              Command="{Binding ImportImageFileCommand}">
+                        <MenuItem.Icon>
+                            <ui:SymbolIcon Symbol="Image24" />
+                        </MenuItem.Icon>
+                    </MenuItem>
                     <MenuItem Header="_Export Toolpath File (.h)..."
                               InputGestureText="Ctrl+E"
                               Command="{Binding ExportMachineFileCommand}">
@@ -1304,10 +1310,58 @@
                                             <TextBlock Text="{Binding SelectedShape.TotalPerimeterLength, StringFormat='{}{0:F2} mm'}" FontWeight="SemiBold" HorizontalAlignment="Right" />
                                         </Grid>
                                     </StackPanel>
+
+                                    <!-- Image Parameters -->
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedShape.ShapeType}" Value="Image">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+
+                                        <Grid Margin="0,0,0,8">
+                                            <TextBlock Text="Resolution:" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                <TextBlock Text="{Binding SelectedShape.PixelWidth}" FontSize="11" FontWeight="SemiBold" />
+                                                <TextBlock Text=" × " FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                <TextBlock Text="{Binding SelectedShape.PixelHeight}" FontSize="11" FontWeight="SemiBold" />
+                                                <TextBlock Text=" px" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <Grid Margin="0,2,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="Width (mm):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
+                                                <ui:TextBox Text="{Binding SelectedShape.Width, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Height (mm):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
+                                                <ui:TextBox Text="{Binding SelectedShape.Height, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <CheckBox IsChecked="{Binding SelectedShape.LockAspectRatio, Mode=TwoWay}"
+                                                  Content="Lock Aspect Ratio"
+                                                  FontSize="11"
+                                                  Margin="0,0,0,8" />
+
+                                        <TextBlock Text="Rotation Angle (°):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
+                                        <ui:TextBox Text="{Binding SelectedShape.RotationDegrees, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+                                    </StackPanel>
                                 </StackPanel>
                             </ui:Card>
 
-                            <!-- Hatch Fill Card (Visible for closed shapes: Circle, Rectangle, Polygon) -->
+                            <!-- Hatch Fill Card (Visible for closed shapes: Circle, Rectangle, Polygon, Text; NOT Image) -->
                             <Grid Margin="0,0,0,12">
                                 <Grid.Style>
                                     <Style TargetType="Grid">
@@ -1315,6 +1369,9 @@
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding SelectedShape.IsClosed}" Value="True">
                                                 <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding SelectedShape.ShapeType}" Value="Image">
+                                                <Setter Property="Visibility" Value="Collapsed" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -1536,6 +1593,95 @@
                                                       FontSize="11"
                                                       Margin="0,2,0,4" />
                                         </StackPanel>
+                                    </StackPanel>
+                                </ui:Card>
+                            </Grid>
+
+                            <!-- Image Raster & Overlay Card (Visible only when shape is Image) -->
+                            <Grid Margin="0,0,0,12">
+                                <Grid.Style>
+                                    <Style TargetType="Grid">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedShape.ShapeType}" Value="Image">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Grid.Style>
+
+                                <ui:Card Padding="12">
+                                    <StackPanel>
+                                        <TextBlock Text="IMAGE RASTER &amp; OVERLAY"
+                                                   FontSize="10"
+                                                   FontWeight="Bold"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                   Margin="0,0,0,8" />
+
+                                        <!-- Raster Mode -->
+                                        <TextBlock Text="Raster Strategy:" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
+                                        <ComboBox SelectedValue="{Binding SelectedShape.RasterMode, Mode=TwoWay}"
+                                                  SelectedValuePath="Tag"
+                                                  HorizontalAlignment="Stretch"
+                                                  Margin="0,0,0,8">
+                                            <ComboBoxItem Content="Grayscale Density Modulation" Tag="{x:Static shapes:ImageRasterMode.GrayscaleDensity}" />
+                                            <ComboBoxItem Content="Binary Threshold" Tag="{x:Static shapes:ImageRasterMode.Threshold}" />
+                                        </ComboBox>
+
+                                        <!-- Stepover -->
+                                        <TextBlock Text="Scanline Stepover (mm):" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,2" />
+                                        <ui:TextBox Text="{Binding SelectedShape.Stepover, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+
+                                        <!-- Binary Threshold (Visible only when mode is Threshold) -->
+                                        <StackPanel>
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedShape.RasterMode}" Value="{x:Static shapes:ImageRasterMode.Threshold}">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+
+                                            <Grid Margin="0,0,0,2">
+                                                <TextBlock Text="Brightness Threshold:" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                <TextBlock Text="{Binding SelectedShape.BrightnessThreshold, StringFormat='{}{0:F2}'}" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Right" />
+                                            </Grid>
+                                            <Slider Minimum="0.0" Maximum="1.0"
+                                                    TickFrequency="0.05"
+                                                    IsSnapToTickEnabled="False"
+                                                    Value="{Binding SelectedShape.BrightnessThreshold, Mode=TwoWay}"
+                                                    Margin="0,2,0,8" />
+                                        </StackPanel>
+
+                                        <!-- Invert and Bidirectional toggles -->
+                                        <CheckBox IsChecked="{Binding SelectedShape.InvertImage, Mode=TwoWay}"
+                                                  Content="Invert Polarity (Light marks)"
+                                                  FontSize="11"
+                                                  Margin="0,2,0,4" />
+                                        <CheckBox IsChecked="{Binding SelectedShape.BidirectionalScan, Mode=TwoWay}"
+                                                  Content="Bidirectional Scanning (Zig-Zag)"
+                                                  FontSize="11"
+                                                  Margin="0,2,0,8" />
+
+                                        <Separator Margin="0,4,0,8" />
+
+                                        <!-- Viewport Overlay controls -->
+                                        <CheckBox IsChecked="{Binding SelectedShape.ShowOverlay, Mode=TwoWay}"
+                                                  Content="Show Image in Viewport"
+                                                  FontSize="11"
+                                                  Margin="0,0,0,4" />
+
+                                        <Grid Margin="0,2,0,2">
+                                            <TextBlock Text="Overlay Opacity:" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock Text="{Binding SelectedShape.OverlayOpacity, StringFormat='{}{0:P0}'}" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Right" />
+                                        </Grid>
+                                        <Slider Minimum="0.0" Maximum="1.0"
+                                                TickFrequency="0.05"
+                                                Value="{Binding SelectedShape.OverlayOpacity, Mode=TwoWay}"
+                                                Margin="0,2,0,4" />
                                     </StackPanel>
                                 </ui:Card>
                             </Grid>

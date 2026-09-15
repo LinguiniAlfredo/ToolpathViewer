@@ -11,6 +11,7 @@ using AblationStudio.Core.Shapes;
 using AblationStudio.Core.Simulation;
 using AblationStudio.Rendering.Camera;
 using AblationStudio.App.Services;
+using System.Windows.Media.Imaging;
 
 namespace AblationStudio.App.ViewModels;
 
@@ -460,6 +461,7 @@ public sealed class MainViewModel : ObservableObject
     public ICommand ExportMachineFileCommand { get; }
     public ICommand ImportMachineFileCommand { get; }
     public ICommand ImportContourShapeCommand => ImportMachineFileCommand;
+    public ICommand ImportImageFileCommand { get; }
     public ICommand FitViewCommand { get; }
     public ICommand SetPresetCommand { get; }
     public ICommand ToggleThemeCommand { get; }
@@ -494,6 +496,7 @@ public sealed class MainViewModel : ObservableObject
         OpenMachineFileCommand = new RelayCommand(async () => await ExecuteOpenMachineFileAsync());
         ExportMachineFileCommand = new RelayCommand(ExecuteExportMachineFile, () => CustomShapes.Shapes.Count > 0 || HasLoadedFile);
         ImportMachineFileCommand = new RelayCommand(async () => await ExecuteImportMachineFileAsync());
+        ImportImageFileCommand = new RelayCommand(async () => await ExecuteImportImageFileAsync());
         ExportToolpathCommand = ExportMachineFileCommand;
 
         FitViewCommand = new RelayCommand(() => FitViewRequested?.Invoke(), () => HasLoadedFile);
@@ -805,6 +808,10 @@ public sealed class MainViewModel : ObservableObject
         {
             await ImportContourShapeAsync(filePath);
         }
+        else if (ext is ".png" or ".jpg" or ".jpeg" or ".bmp" or ".tif" or ".tiff" or ".gif")
+        {
+            await ImportImageFileAsync(filePath);
+        }
         else
         {
             await LoadMachineFileAsync(filePath);
@@ -990,6 +997,95 @@ public sealed class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             StatusText = $"Error importing contour shape: {ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    public async Task ExecuteImportImageFileAsync()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Import Image File",
+            Filter = "Image Files (*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff;*.gif)|*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff;*.gif|All Files (*.*)|*.*",
+            DefaultExt = ".png"
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            await ImportImageFileAsync(dialog.FileName);
+        }
+    }
+
+    public async Task ImportImageFileAsync(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+        {
+            StatusText = $"File not found: {filePath}";
+            return;
+        }
+
+        try
+        {
+            IsLoading = true;
+            StatusText = $"Importing image from {Path.GetFileName(filePath)}...";
+
+            byte[] rawBytes = await File.ReadAllBytesAsync(filePath);
+
+            using var stream = new MemoryStream(rawBytes);
+            var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
+            BitmapFrame frame = decoder.Frames[0];
+
+            int width = frame.PixelWidth;
+            int height = frame.PixelHeight;
+
+            var grayBmp = new FormatConvertedBitmap(frame, System.Windows.Media.PixelFormats.Gray8, null, 0);
+            byte[] pixelData = new byte[width * height];
+            grayBmp.CopyPixels(pixelData, width, 0);
+
+            // Default physical dimensions: 30mm width, height preserves aspect ratio
+            float physicalWidth = 30.0f;
+            float physicalHeight = height > 0 ? (physicalWidth * height / width) : physicalWidth;
+
+            var imageShape = new ImageShape(
+                centerX: 0f,
+                centerY: 0f,
+                centerZ: 0f,
+                width: physicalWidth,
+                height: physicalHeight,
+                pixelData: pixelData,
+                pixelWidth: width,
+                pixelHeight: height,
+                rawImageData: rawBytes,
+                sourceFileName: Path.GetFileName(filePath));
+
+            EnsureUniqueShapeName(imageShape);
+
+            CustomShapes.AddShape(imageShape);
+            CustomShapes.SelectedShape = imageShape;
+            CustomShapes.UndoManager.RecordAction(new AddShapeAction(
+                CustomShapes,
+                imageShape,
+                CustomShapes.Shapes.Count - 1,
+                $"Import {imageShape.Name}"));
+            IsProjectModified = CustomShapes.UndoManager.IsModified;
+
+            if (CustomShapes.Shapes.Count == 1 && (string.IsNullOrEmpty(ProjectName) || ProjectName == "Untitled"))
+            {
+                ProjectName = Path.GetFileNameWithoutExtension(filePath);
+            }
+
+            LoadedToolpath = CustomShapes.CompileToolpath($"{ProjectName}.h");
+            ToolpathLoaded?.Invoke(LoadedToolpath, false);
+            FitViewRequested?.Invoke();
+            RequestRender?.Invoke();
+            StatusText = $"Imported image '{imageShape.Name}' ({width}x{height} px, {physicalWidth:F1}x{physicalHeight:F1} mm).";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Error importing image: {ex.Message}";
         }
         finally
         {

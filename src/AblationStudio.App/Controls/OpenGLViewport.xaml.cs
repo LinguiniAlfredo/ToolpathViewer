@@ -266,7 +266,7 @@ public partial class OpenGLViewport : UserControl
 
         _renderer.Initialize();
         _renderer.ShapeOverlay.SetSelectedShapes(ShapeDocument?.SelectedShapes);
-        _renderer.Render(width, height);
+        _renderer.Render(width, height, ShapeDocument?.Shapes);
     }
 
     private void OnViewportMouseDown(object sender, MouseButtonEventArgs e)

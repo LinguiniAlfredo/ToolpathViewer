@@ -1,6 +1,7 @@
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using AblationStudio.Core.Models;
+using AblationStudio.Core.Shapes;
 using AblationStudio.Rendering.Camera;
 using AblationStudio.Rendering.Renderers;
 using AblationStudio.Rendering.Shaders;
@@ -20,6 +21,7 @@ public sealed class SceneRenderer : IDisposable
     public OrientationGizmoRenderer AxesRenderer => OrientationGizmo;
     public BoundingBoxRenderer BoundingBoxRenderer { get; } = new();
     public ShapeOverlayRenderer ShapeOverlay { get; } = new();
+    public ImageOverlayRenderer ImageOverlay { get; } = new();
     public ToolIndicatorRenderer ToolIndicator { get; } = new();
 
     public Vector4 ClearColor { get; set; } = new(0.08f, 0.085f, 0.095f, 1.0f); // Windows 11 Dark Canvas
@@ -40,6 +42,7 @@ public sealed class SceneRenderer : IDisposable
         OrientationGizmo.Initialize();
         BoundingBoxRenderer.Initialize();
         ShapeOverlay.Initialize();
+        ImageOverlay.Initialize();
         ToolIndicator.Initialize();
 
         Camera.Distance = 25f;
@@ -77,7 +80,7 @@ public sealed class SceneRenderer : IDisposable
         }
     }
 
-    public void Render(int width, int height)
+    public void Render(int width, int height, IEnumerable<ToolpathShape>? shapes = null)
     {
         if (!_isInitialized || _shader is null || width <= 0 || height <= 0)
         {
@@ -97,16 +100,19 @@ public sealed class SceneRenderer : IDisposable
         // 2. Bounding Box Wireframe
         BoundingBoxRenderer.Render(_shader, mvp);
 
-        // 3. Toolpath Segments
+        // 3. Image Overlay (semi-transparent textured quad beneath toolpaths)
+        ImageOverlay.Render(mvp, shapes);
+
+        // 4. Toolpath Segments
         ToolpathRenderer.Render(mvp);
 
-        // 4. Shape Editing & Selection Overlay
+        // 5. Shape Editing & Selection Overlay
         ShapeOverlay.Render(_shader, mvp);
 
-        // 5. Toolpath Simulation Indicator
+        // 6. Toolpath Simulation Indicator
         ToolIndicator.Render(_shader, mvp);
 
-        // 6. Orientation Gizmo (3D Cube + Color-Coded Arrows in Bottom-Right Corner)
+        // 7. Orientation Gizmo (3D Cube + Color-Coded Arrows in Bottom-Right Corner)
         OrientationGizmo.Render(_shader, Camera, width, height);
     }
 
@@ -130,6 +136,7 @@ public sealed class SceneRenderer : IDisposable
             OrientationGizmo.Dispose();
             BoundingBoxRenderer.Dispose();
             ShapeOverlay.Dispose();
+            ImageOverlay.Dispose();
             ToolIndicator.Dispose();
             _disposed = true;
         }
